@@ -1,0 +1,658 @@
+import { Hono } from 'hono';
+import * as crypto from 'crypto';
+import { Readable } from 'stream';
+import { eq, and, or, desc, asc, isNull, ilike, gte, lte, sql, count } from 'drizzle-orm';
+import { db } from '../db/index.js';
+import { assets, assetFiles, categories, users } from '../db/schema.js';
+import { authMiddleware } from '../middleware/index.js';
+import { verifyAccessToken } from '../lib/index.js';
+import { storage } from '../storage/index.js';
+import { validateUploadedFile, mapAssetTypeToCategory } from '../utils/fileValidation.js';
+import { assetFileService } from '../services/assetFileService.js';
+import { formatAssetUrls } from '../utils/url.js';
+
+export const assetRoutes = new Hono();
+
+// Max upload size limits
+const MAX_THUMBNAIL_SIZE = 15 * 1024 * 1024; // 15MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+
+/**
+ * Generate URL-friendly slug from title
+ */
+function createSlug(title: string): string {
+  const base = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const suffix = crypto.randomBytes(3).toString('hex');
+  return `${base || 'asset'}-${suffix}`;
+}
+
+/**
+ * POST /assets/upload
+ * Handle multipart asset upload (thumbnail + archive file + metadata)
+ */
+assetRoutes.post('/upload', authMiddleware, async (c) => {
+  try {
+    const sessionUser = c.get('user');
+    const formData = await c.req.formData();
+
+    const title = (formData.get('title') as string || '').trim();
+    const shortDescription = (formData.get('shortDescription') as string || '').trim();
+    const description = (formData.get('description') as string || '').trim();
+    const categoryId = (formData.get('categoryId') as string || '').trim();
+    const assetType = (formData.get('assetType') as any || 'other').trim();
+    const priceStr = (formData.get('price') as string || '0').trim();
+    const discountPriceStr = (formData.get('discountPrice') as string || '').trim();
+    const demoUrl = (formData.get('demoUrl') as string || '').trim();
+    const tagsRaw = (formData.get('tags') as string || '').trim();
+
+    // Files
+    const thumbnail = formData.get('thumbnail') as unknown as File | null;
+    const assetFile = formData.get('file') as unknown as File | null;
+
+    // Field Validations
+    if (!title || title.length < 3) {
+      return c.json({ success: false, message: 'Title must be at least 3 characters' }, 400);
+    }
+    if (!description || description.length < 10) {
+      return c.json({ success: false, message: 'Description must be at least 10 characters' }, 400);
+    }
+    if (!categoryId) {
+      return c.json({ success: false, message: 'Please select a valid category' }, 400);
+    }
+
+    const price = parseFloat(priceStr);
+    if (isNaN(price) || price < 0) {
+      return c.json({ success: false, message: 'Price must be a valid non-negative number' }, 400);
+    }
+
+    const discountPrice = discountPriceStr ? parseFloat(discountPriceStr) : null;
+    if (discountPrice !== null && (isNaN(discountPrice) || discountPrice < 0)) {
+      return c.json({ success: false, message: 'Discount price must be a valid number' }, 400);
+    }
+
+    // Thumbnail Validation
+    const thumbValidation = validateUploadedFile(thumbnail, 'image', {
+      maxSizeBytes: MAX_THUMBNAIL_SIZE,
+    });
+    if (!thumbValidation.valid) {
+      return c.json({ success: false, message: thumbValidation.error }, 400);
+    }
+
+    // Asset Deliverable Validation
+    const targetCategory = mapAssetTypeToCategory(assetType);
+    const fileValidation = validateUploadedFile(assetFile, targetCategory, {
+      maxSizeBytes: MAX_FILE_SIZE,
+    });
+    if (!fileValidation.valid) {
+      return c.json({ success: false, message: fileValidation.error }, 400);
+    }
+
+    // Parse Tags
+    let tags: string[] = [];
+    if (tagsRaw) {
+      try {
+        tags = JSON.parse(tagsRaw);
+      } catch {
+        tags = tagsRaw.split(',').map((t) => t.trim()).filter(Boolean);
+      }
+    }
+
+    // 1. Upload Thumbnail via Storage Provider
+    const thumbBuffer = Buffer.from(await thumbnail!.arrayBuffer());
+    const thumbUpload = await storage.upload({
+      buffer: thumbBuffer,
+      fileName: thumbnail!.name,
+      mimeType: thumbValidation.mimeType || thumbnail!.type || 'image/jpeg',
+      folder: 'thumbnails',
+      isPublic: true,
+    });
+    const thumbnailUrl = thumbUpload.publicUrl;
+
+    // 2. Create Asset Record in Database
+    const slug = createSlug(title);
+
+    const [newAsset] = await db
+      .insert(assets)
+      .values({
+        sellerId: sessionUser.userId,
+        categoryId,
+        title,
+        slug,
+        shortDescription: shortDescription || null,
+        description,
+        assetType,
+        status: 'pending', // Awaiting Admin Review
+        price: price.toFixed(2),
+        discountPrice: discountPrice !== null ? discountPrice.toFixed(2) : null,
+        currency: 'IDR',
+        thumbnailUrl,
+        previewImages: [],
+        demoUrl: demoUrl || null,
+        tags,
+      })
+      .returning();
+
+    if (!newAsset) {
+      throw new Error('Failed to create asset record in database');
+    }
+
+    // 3. Save Deliverable File & Persist in asset_files table
+    const fileBuffer = Buffer.from(await assetFile!.arrayBuffer());
+    const { fileRecord } = await assetFileService.saveAssetDeliverable({
+      assetId: newAsset.id,
+      fileBuffer,
+      fileName: assetFile!.name,
+      mimeType: fileValidation.mimeType || assetFile!.type || 'application/octet-stream',
+      assetType,
+      isMain: true,
+    });
+
+    return c.json(
+      {
+        success: true,
+        message: 'Asset submitted successfully and is now pending admin approval',
+        data: {
+          asset: formatAssetUrls(newAsset),
+          file: fileRecord,
+        },
+      },
+      201
+    );
+  } catch (error: any) {
+    console.error('Asset Upload Error:', error);
+    return c.json(
+      {
+        success: false,
+        message: 'Failed to upload asset. Please verify input data and file format.',
+        error: error?.message,
+      },
+      500
+    );
+  }
+});
+
+/**
+ * GET /assets/my
+ * Retrieve all assets uploaded by the currently authenticated seller
+ */
+assetRoutes.get('/my', authMiddleware, async (c) => {
+  try {
+    const sessionUser = c.get('user');
+
+    const myListings = await db
+      .select({
+        id: assets.id,
+        title: assets.title,
+        slug: assets.slug,
+        shortDescription: assets.shortDescription,
+        description: assets.description,
+        assetType: assets.assetType,
+        status: assets.status,
+        rejectionReason: assets.rejectionReason,
+        reviewedAt: assets.reviewedAt,
+        price: assets.price,
+        discountPrice: assets.discountPrice,
+        currency: assets.currency,
+        thumbnailUrl: assets.thumbnailUrl,
+        demoUrl: assets.demoUrl,
+        tags: assets.tags,
+        downloadCount: assets.downloadCount,
+        viewCount: assets.viewCount,
+        ratingAvg: assets.ratingAvg,
+        ratingCount: assets.ratingCount,
+        createdAt: assets.createdAt,
+        updatedAt: assets.updatedAt,
+        category: {
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+        },
+      })
+      .from(assets)
+      .leftJoin(categories, eq(assets.categoryId, categories.id))
+      .where(and(eq(assets.sellerId, sessionUser.userId), isNull(assets.deletedAt)))
+      .orderBy(desc(assets.createdAt));
+
+    return c.json({
+      success: true,
+      data: {
+        assets: myListings.map(formatAssetUrls),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching my assets:', error);
+    return c.json(
+      {
+        success: false,
+        message: 'Failed to retrieve your listings',
+        error: error?.message,
+      },
+      500
+    );
+  }
+});
+
+/**
+ * GET /assets
+ * Public marketplace listing: retrieves ONLY approved assets with filters and pagination
+ */
+assetRoutes.get('/', async (c) => {
+  try {
+    const categoryQuery = c.req.query('category');
+    const assetType = c.req.query('type');
+    const search = c.req.query('q');
+    const minPriceStr = c.req.query('minPrice');
+    const maxPriceStr = c.req.query('maxPrice');
+    const sort = c.req.query('sort') || 'newest';
+    const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
+    const limit = Math.max(1, Math.min(50, parseInt(c.req.query('limit') || '9', 10)));
+    const offset = (page - 1) * limit;
+
+    // Base condition: MUST BE APPROVED and NOT DELETED
+    const conditions = [eq(assets.status, 'approved'), isNull(assets.deletedAt)];
+
+    if (categoryQuery) {
+      conditions.push(
+        or(
+          eq(categories.slug, categoryQuery.trim()),
+          eq(categories.id, categoryQuery.trim())
+        )!
+      );
+    }
+
+    if (assetType && assetType !== 'all') {
+      conditions.push(eq(assets.assetType, assetType as any));
+    }
+
+    if (search && search.trim()) {
+      const q = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(assets.title, q),
+          ilike(assets.description, q),
+          ilike(assets.shortDescription, q)
+        )!
+      );
+    }
+
+    if (minPriceStr) {
+      const minP = parseFloat(minPriceStr);
+      if (!isNaN(minP)) {
+        conditions.push(gte(assets.price, minP.toFixed(2)));
+      }
+    }
+
+    if (maxPriceStr) {
+      const maxP = parseFloat(maxPriceStr);
+      if (!isNaN(maxP)) {
+        conditions.push(lte(assets.price, maxP.toFixed(2)));
+      }
+    }
+
+    // Determine Order By clause
+    let orderByClause = desc(assets.createdAt);
+    if (sort === 'price_asc') {
+      orderByClause = asc(assets.price);
+    } else if (sort === 'price_desc') {
+      orderByClause = desc(assets.price);
+    } else if (sort === 'popular') {
+      orderByClause = desc(assets.downloadCount);
+    } else if (sort === 'rating') {
+      orderByClause = desc(assets.ratingAvg);
+    }
+
+    const whereClause = and(...conditions);
+
+    // Fetch Total Count for pagination
+    const [totalResult] = await db
+      .select({ value: count() })
+      .from(assets)
+      .leftJoin(categories, eq(assets.categoryId, categories.id))
+      .where(whereClause);
+
+    const total = Number(totalResult?.value || 0);
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    // Fetch Paginated Assets
+    const approvedAssets = await db
+      .select({
+        id: assets.id,
+        title: assets.title,
+        slug: assets.slug,
+        shortDescription: assets.shortDescription,
+        assetType: assets.assetType,
+        price: assets.price,
+        discountPrice: assets.discountPrice,
+        currency: assets.currency,
+        thumbnailUrl: assets.thumbnailUrl,
+        tags: assets.tags,
+        downloadCount: assets.downloadCount,
+        viewCount: assets.viewCount,
+        ratingAvg: assets.ratingAvg,
+        ratingCount: assets.ratingCount,
+        createdAt: assets.createdAt,
+        seller: {
+          id: users.id,
+          name: users.name,
+          avatarUrl: users.avatarUrl,
+          isVerifiedSeller: users.isVerifiedSeller,
+        },
+        category: {
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+        },
+      })
+      .from(assets)
+      .leftJoin(users, eq(assets.sellerId, users.id))
+      .leftJoin(categories, eq(assets.categoryId, categories.id))
+      .where(whereClause)
+      .orderBy(orderByClause)
+      .limit(limit)
+      .offset(offset);
+
+    return c.json({
+      success: true,
+      data: {
+        assets: approvedAssets.map(formatAssetUrls),
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages,
+        },
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching marketplace assets:', error);
+    return c.json(
+      {
+        success: false,
+        message: 'Failed to load marketplace assets',
+        error: error?.message,
+      },
+      500
+    );
+  }
+});
+
+/**
+ * GET /assets/:id/download
+ * Securely stream and download main asset deliverable (validates purchase or ownership)
+ */
+assetRoutes.get('/:id/download', authMiddleware, async (c) => {
+  try {
+    const sessionUser = c.get('user');
+    const assetId = c.req.param('id') || '';
+
+    const perm = await assetFileService.checkAssetDownloadPermission(assetId, sessionUser);
+    if (!perm.allowed || !perm.file || !perm.asset) {
+      return c.json(
+        {
+          success: false,
+          message: perm.reason || 'Akses ditolak: Anda belum membeli atau mengklaim aset ini.',
+        },
+        perm.statusCode as any
+      );
+    }
+
+    const download = await assetFileService.streamDownload(perm.file, perm.asset);
+
+    const headers: Record<string, string> = {
+      'Content-Type': download.mimeType || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(download.fileName)}"`,
+      'Content-Length': download.fileSizeBytes.toString(),
+      'Cache-Control': 'private, no-transform, no-store',
+    };
+
+    if (download.stream) {
+      return c.body(Readable.toWeb(download.stream) as any, 200, headers);
+    }
+    return c.body(download.buffer as any, 200, headers);
+  } catch (error: any) {
+    console.error('Asset Download Error:', error);
+    const isNotFound = error?.message?.includes('File not found') || error?.message?.includes('tidak ditemukan');
+    return c.json(
+      {
+        success: false,
+        message: isNotFound
+          ? 'Berkas fisik aset tidak ditemukan di server penyimpanan. Silakan hubungi tim dukungan.'
+          : 'Gagal mengunduh berkas deliverable',
+        error: error?.message,
+      },
+      isNotFound ? 404 : 500
+    );
+  }
+});
+
+/**
+ * GET /assets/files/:fileId/download
+ * Securely stream and download a specific file by its file ID
+ */
+assetRoutes.get('/files/:fileId/download', authMiddleware, async (c) => {
+  try {
+    const sessionUser = c.get('user');
+    const fileId = c.req.param('fileId') || '';
+
+    const perm = await assetFileService.checkDownloadPermission(fileId, sessionUser);
+    if (!perm.allowed || !perm.file || !perm.asset) {
+      return c.json(
+        {
+          success: false,
+          message: perm.reason || 'Akses ditolak: Anda belum memiliki izin untuk mengunduh berkas ini.',
+        },
+        perm.statusCode as any
+      );
+    }
+
+    const download = await assetFileService.streamDownload(perm.file, perm.asset);
+
+    const headers: Record<string, string> = {
+      'Content-Type': download.mimeType || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(download.fileName)}"`,
+      'Content-Length': download.fileSizeBytes.toString(),
+      'Cache-Control': 'private, no-transform, no-store',
+    };
+
+    if (download.stream) {
+      return c.body(Readable.toWeb(download.stream) as any, 200, headers);
+    }
+    return c.body(download.buffer as any, 200, headers);
+  } catch (error: any) {
+    console.error('File Download Error:', error);
+    const isNotFound = error?.message?.includes('File not found') || error?.message?.includes('tidak ditemukan');
+    return c.json(
+      {
+        success: false,
+        message: isNotFound
+          ? 'Berkas fisik aset tidak ditemukan di server penyimpanan. Silakan hubungi tim dukungan.'
+          : 'Gagal mengunduh file aset',
+        error: error?.message,
+      },
+      isNotFound ? 404 : 500
+    );
+  }
+});
+
+/**
+ * POST /assets/:id/claim
+ * Claim free asset and add to user's library
+ */
+assetRoutes.post('/:id/claim', authMiddleware, async (c) => {
+  try {
+    const sessionUser = c.get('user');
+    const assetId = c.req.param('id') || '';
+
+    const [asset] = await db
+      .select()
+      .from(assets)
+      .where(and(eq(assets.id, assetId), isNull(assets.deletedAt)))
+      .limit(1);
+
+    if (!asset) {
+      return c.json({ success: false, message: 'Aset tidak ditemukan' }, 404);
+    }
+
+    if (asset.status !== 'approved') {
+      return c.json({ success: false, message: 'Aset belum disetujui untuk diklaim' }, 400);
+    }
+
+    if (asset.sellerId === sessionUser.userId) {
+      return c.json({ success: false, message: 'Anda adalah pemilik aset ini' }, 400);
+    }
+
+    const effectivePrice = asset.discountPrice ? Number(asset.discountPrice) : Number(asset.price);
+    if (effectivePrice > 0) {
+      return c.json({ success: false, message: 'Aset ini berbayar dan harus dibeli melalui checkout' }, 400);
+    }
+
+    return c.redirect(`/api/purchases/claim/${asset.id}`, 307);
+  } catch (error: any) {
+    console.error('Error claiming free asset:', error);
+    return c.json({ success: false, message: 'Gagal mengklaim aset gratis', error: error?.message }, 500);
+  }
+});
+
+/**
+ * GET /assets/:identifier
+ * Retrieve single asset details by ID or Slug (only approved assets for public)
+ */
+assetRoutes.get('/:identifier', async (c) => {
+  try {
+    const identifier = c.req.param('identifier');
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const identifierCondition = isUuid
+      ? or(eq(assets.id, identifier), eq(assets.slug, identifier))
+      : eq(assets.slug, identifier);
+
+    // Query asset by ID or Slug
+    const [asset] = await db
+      .select({
+        id: assets.id,
+        sellerId: assets.sellerId,
+        categoryId: assets.categoryId,
+        title: assets.title,
+        slug: assets.slug,
+        shortDescription: assets.shortDescription,
+        description: assets.description,
+        assetType: assets.assetType,
+        status: assets.status,
+        rejectionReason: assets.rejectionReason,
+        reviewedAt: assets.reviewedAt,
+        price: assets.price,
+        discountPrice: assets.discountPrice,
+        currency: assets.currency,
+        thumbnailUrl: assets.thumbnailUrl,
+        previewImages: assets.previewImages,
+        demoUrl: assets.demoUrl,
+        tags: assets.tags,
+        downloadCount: assets.downloadCount,
+        viewCount: assets.viewCount,
+        ratingAvg: assets.ratingAvg,
+        ratingCount: assets.ratingCount,
+        createdAt: assets.createdAt,
+        updatedAt: assets.updatedAt,
+        seller: {
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          avatarUrl: users.avatarUrl,
+          bio: users.bio,
+          isVerifiedSeller: users.isVerifiedSeller,
+          createdAt: users.createdAt,
+        },
+        category: {
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+          description: categories.description,
+        },
+      })
+      .from(assets)
+      .leftJoin(users, eq(assets.sellerId, users.id))
+      .leftJoin(categories, eq(assets.categoryId, categories.id))
+      .where(
+        and(
+          identifierCondition,
+          isNull(assets.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!asset) {
+      return c.json({ success: false, message: 'Asset not found' }, 404);
+    }
+
+    // Security Check: If asset is NOT approved, only author or admin may view
+    if (asset.status !== 'approved') {
+      const authHeader = c.req.header('Authorization');
+      let isAuthorized = false;
+
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const payload = await verifyAccessToken(token);
+        if (payload) {
+          if (payload.userId === asset.sellerId || payload.role === 'admin' || payload.role === 'superadmin') {
+            isAuthorized = true;
+          }
+        }
+      }
+
+      if (!isAuthorized) {
+        return c.json(
+          {
+            success: false,
+            message: 'This asset is currently under moderation and is not publicly accessible.',
+          },
+          403
+        );
+      }
+    }
+
+    // Fetch deliverable public file metadata (excluding private disk keys)
+    const files = await db
+      .select({
+        id: assetFiles.id,
+        fileName: assetFiles.fileName,
+        fileSizeBytes: assetFiles.fileSizeBytes,
+        mimeType: assetFiles.mimeType,
+        fileExtension: assetFiles.fileExtension,
+        version: assetFiles.version,
+        isMain: assetFiles.isMain,
+      })
+      .from(assetFiles)
+      .where(and(eq(assetFiles.assetId, asset.id), isNull(assetFiles.deletedAt)));
+
+    // Safely increment view count asynchronously
+    db.update(assets)
+      .set({ viewCount: sql`${assets.viewCount} + 1` })
+      .where(eq(assets.id, asset.id))
+      .catch((err) => console.warn('Failed to increment view count:', err));
+
+    return c.json({
+      success: true,
+      data: {
+        asset: {
+          ...formatAssetUrls(asset),
+          files,
+        },
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching asset detail:', error);
+    return c.json(
+      {
+        success: false,
+        message: 'Failed to retrieve asset details',
+        error: error?.message,
+      },
+      500
+    );
+  }
+});

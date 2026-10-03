@@ -1,0 +1,465 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
+import { assetService } from '../services/assets';
+import StatusBadge from '../components/StatusBadge.vue';
+import { formatCurrency } from '../utils/formatters';
+import { getAssetImageUrl, handleImageFallback, getLuxuryPlaceholder } from '../utils/imageUrl';
+import type { Asset, AssetStatus } from '../types';
+import {
+  Plus,
+  Search,
+  AlertTriangle,
+  FolderOpen,
+  Eye,
+  Download,
+  Calendar,
+  ExternalLink,
+  CheckCircle2,
+  Clock,
+  AlertOctagon,
+  Sparkles,
+  Layers,
+} from 'lucide-vue-next';
+
+const assets = ref<Asset[]>([]);
+const isLoading = ref(true);
+const errorMessage = ref<string | null>(null);
+
+const activeFilter = ref<'all' | AssetStatus>('all');
+const searchQuery = ref('');
+
+onMounted(async () => {
+  await loadListings();
+});
+
+async function loadListings() {
+  isLoading.value = true;
+  errorMessage.value = null;
+  try {
+    assets.value = await assetService.getMyListings();
+  } catch (err: any) {
+    errorMessage.value = err?.response?.data?.message || err?.message || 'Gagal memuat katalog aset Anda.';
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// Counts for tabs and metric cards
+const counts = computed(() => {
+  return {
+    all: assets.value.length,
+    pending: assets.value.filter((a) => a.status === 'pending').length,
+    approved: assets.value.filter((a) => a.status === 'approved').length,
+    rejected: assets.value.filter((a) => a.status === 'rejected').length,
+  };
+});
+
+// Resolve image URL from any available field alias, with luxury fallback
+function resolveListingImage(item: Asset): string {
+  const raw =
+    (item as any).thumbnailUrl ||
+    (item as any).thumbnail ||
+    (item as any).thumbnail_url ||
+    (item as any).coverUrl ||
+    (item as any).cover_url ||
+    (item as any).imageUrl ||
+    (item as any).image_url;
+  if (!raw) {
+    return getLuxuryPlaceholder(item.title, item.category?.name || item.assetType);
+  }
+  return getAssetImageUrl(raw);
+}
+
+// Filtered and searched assets
+const filteredAssets = computed(() => {
+  return assets.value.filter((item) => {
+    const matchesFilter =
+      activeFilter.value === 'all' || item.status === activeFilter.value;
+    const q = searchQuery.value.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      item.title.toLowerCase().includes(q) ||
+      (item.slug || '').toLowerCase().includes(q) ||
+      (item.category?.name || '').toLowerCase().includes(q);
+    return matchesFilter && matchesSearch;
+  });
+});
+</script>
+
+<template>
+  <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <!-- Header with Action -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div>
+        <div class="flex items-center gap-2 text-xs font-semibold text-secondary uppercase tracking-wider mb-1">
+          <Layers class="h-3.5 w-3.5" />
+          <span>Creator Studio • Inventory</span>
+        </div>
+        <h1 class="font-heading text-4xl sm:text-5xl font-bold text-text-primary">
+          Manage My Listings
+        </h1>
+        <p class="mt-2 text-xs sm:text-sm text-text-secondary">
+          Pantau status kurasi moderasi, evaluasi feedback kurator, dan kelola portofolio aset digital Anda.
+        </p>
+      </div>
+
+      <router-link
+        to="/upload"
+        class="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/20 hover:bg-primary-hover transition transform active:scale-95 shrink-0"
+      >
+        <Plus class="h-4 w-4" />
+        <span>Unggah Aset Baru</span>
+      </router-link>
+    </div>
+
+    <!-- Quick Inventory Stat Cards (Editorial Luxury Strip) -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <!-- Total Listings -->
+      <div
+        class="rounded-2xl border border-border bg-elevated/80 p-4 backdrop-blur-md cursor-pointer transition hover:border-border-hover"
+        :class="{ 'ring-2 ring-primary': activeFilter === 'all' }"
+        @click="activeFilter = 'all'"
+      >
+        <div class="flex items-center justify-between text-text-secondary text-xs mb-1">
+          <span>Total Aset</span>
+          <FolderOpen class="h-4 w-4 text-text-muted" />
+        </div>
+        <div class="font-heading text-2xl sm:text-3xl font-bold text-text-primary">
+          {{ counts.all }}
+        </div>
+        <p class="text-[10px] text-text-secondary mt-1">Seluruh portofolio kreator</p>
+      </div>
+
+      <!-- Approved & Live -->
+      <div
+        class="rounded-2xl border border-success/30 bg-success/5 p-4 backdrop-blur-md cursor-pointer transition hover:border-success/60"
+        :class="{ 'ring-2 ring-success': activeFilter === 'approved' }"
+        @click="activeFilter = 'approved'"
+      >
+        <div class="flex items-center justify-between text-success text-xs mb-1">
+          <span class="font-semibold">Live & Aktif</span>
+          <CheckCircle2 class="h-4 w-4 text-success" />
+        </div>
+        <div class="font-heading text-2xl sm:text-3xl font-bold text-success font-mono">
+          {{ counts.approved }}
+        </div>
+        <p class="text-[10px] text-success/80 mt-1">Dapat dibeli publik</p>
+      </div>
+
+      <!-- Pending Kurasi -->
+      <div
+        class="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 backdrop-blur-md cursor-pointer transition hover:border-amber-500/60"
+        :class="{ 'ring-2 ring-amber-500': activeFilter === 'pending' }"
+        @click="activeFilter = 'pending'"
+      >
+        <div class="flex items-center justify-between text-amber-400 text-xs mb-1">
+          <span class="font-semibold">Dalam Kurasi</span>
+          <Clock class="h-4 w-4 text-amber-400" />
+        </div>
+        <div class="font-heading text-2xl sm:text-3xl font-bold text-amber-400 font-mono">
+          {{ counts.pending }}
+        </div>
+        <p class="text-[10px] text-amber-400/80 mt-1">Antrean review (1-24 jam)</p>
+      </div>
+
+      <!-- Needs Revision -->
+      <div
+        class="rounded-2xl border border-primary/30 bg-primary/5 p-4 backdrop-blur-md cursor-pointer transition hover:border-primary/60"
+        :class="{ 'ring-2 ring-primary': activeFilter === 'rejected' }"
+        @click="activeFilter = 'rejected'"
+      >
+        <div class="flex items-center justify-between text-primary text-xs mb-1">
+          <span class="font-semibold">Perlu Revisi</span>
+          <AlertOctagon class="h-4 w-4 text-primary" />
+        </div>
+        <div class="font-heading text-2xl sm:text-3xl font-bold text-primary font-mono">
+          {{ counts.rejected }}
+        </div>
+        <p class="text-[10px] text-primary/80 mt-1">Ada feedback kurator</p>
+      </div>
+    </div>
+
+    <!-- Filter Tabs & Search Bar -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4 mb-6">
+      <!-- Status Tabs -->
+      <div class="flex flex-wrap gap-2">
+        <button
+          class="rounded-xl px-3.5 py-1.5 text-xs font-medium transition"
+          :class="
+            activeFilter === 'all'
+              ? 'bg-primary text-white font-semibold shadow-md'
+              : 'bg-elevated border border-border text-text-secondary hover:text-text-primary'
+          "
+          @click="activeFilter = 'all'"
+        >
+          Semua ({{ counts.all }})
+        </button>
+
+        <button
+          class="rounded-xl px-3.5 py-1.5 text-xs font-medium transition"
+          :class="
+            activeFilter === 'approved'
+              ? 'bg-success text-white font-semibold shadow-md'
+              : 'bg-elevated border border-border text-text-secondary hover:text-text-primary'
+          "
+          @click="activeFilter = 'approved'"
+        >
+          Live Disetujui ({{ counts.approved }})
+        </button>
+
+        <button
+          class="rounded-xl px-3.5 py-1.5 text-xs font-medium transition"
+          :class="
+            activeFilter === 'pending'
+              ? 'bg-amber-500 text-background font-semibold shadow-md'
+              : 'bg-elevated border border-border text-text-secondary hover:text-text-primary'
+          "
+          @click="activeFilter = 'pending'"
+        >
+          Menunggu Review ({{ counts.pending }})
+        </button>
+
+        <button
+          class="rounded-xl px-3.5 py-1.5 text-xs font-medium transition"
+          :class="
+            activeFilter === 'rejected'
+              ? 'bg-primary text-white font-semibold shadow-md'
+              : 'bg-elevated border border-border text-text-secondary hover:text-text-primary'
+          "
+          @click="activeFilter = 'rejected'"
+        >
+          Perlu Revisi ({{ counts.rejected }})
+        </button>
+      </div>
+
+      <!-- Search Input -->
+      <div class="relative w-full md:w-72">
+        <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Cari aset karya Anda..."
+          class="w-full rounded-xl border border-border bg-elevated/70 pl-10 pr-4 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-primary focus:outline-none backdrop-blur-sm"
+        />
+      </div>
+    </div>
+
+    <!-- Loading Skeletons -->
+    <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div
+        v-for="n in 3"
+        :key="n"
+        class="animate-pulse overflow-hidden rounded-2xl border border-border bg-elevated/50 p-5 space-y-4"
+      >
+        <div class="aspect-video w-full rounded-xl bg-elevated-subtle"></div>
+        <div class="h-6 w-3/4 rounded-lg bg-elevated-subtle"></div>
+        <div class="h-4 w-full rounded-lg bg-elevated-subtle"></div>
+        <div class="h-8 w-1/2 rounded-lg bg-elevated-subtle"></div>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div
+      v-else-if="errorMessage"
+      class="rounded-3xl border border-primary/40 bg-primary/10 p-8 text-center"
+    >
+      <AlertTriangle class="mx-auto h-8 w-8 text-primary mb-3" />
+      <p class="text-xs font-medium text-primary">{{ errorMessage }}</p>
+      <button
+        class="mt-4 rounded-xl border border-primary/40 bg-primary/20 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/30 transition"
+        @click="loadListings"
+      >
+        Coba Muat Ulang
+      </button>
+    </div>
+
+    <!-- Empty State: No Assets at All -->
+    <div
+      v-else-if="assets.length === 0"
+      class="rounded-3xl border border-border bg-elevated/40 p-16 text-center backdrop-blur-md"
+    >
+      <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/15 text-secondary border border-secondary/30 mb-4">
+        <Sparkles class="h-8 w-8" />
+      </div>
+      <h3 class="font-heading text-3xl font-bold text-text-primary mb-2">
+        Belum Ada Aset yang Diunggah
+      </h3>
+      <p class="mx-auto max-w-md text-xs sm:text-sm text-text-secondary mb-6 leading-relaxed">
+        Mulailah memonetisasi karya digital Anda di Asset Market. Dapatkan bagi hasil 60% untuk setiap transaksi penjualan dengan sistem penyaluran otomatis.
+      </p>
+      <router-link
+        to="/upload"
+        class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-white shadow-xl shadow-primary/25 hover:bg-primary-hover transition transform active:scale-95"
+      >
+        <Plus class="h-4 w-4" />
+        <span>Unggah Aset Digital Pertama Anda</span>
+      </router-link>
+    </div>
+
+    <!-- Empty State: Filter / Search Returned 0 Items -->
+    <div
+      v-else-if="filteredAssets.length === 0"
+      class="rounded-3xl border border-border bg-elevated/40 p-12 text-center backdrop-blur-md"
+    >
+      <Search class="mx-auto h-10 w-10 text-text-muted mb-3" />
+      <h3 class="font-heading text-xl font-bold text-text-primary mb-1">
+        Tidak Ada Aset yang Sesuai
+      </h3>
+      <p class="text-xs text-text-secondary mb-4">
+        Tidak ditemukan aset pada kategori filter ini atau dengan kata kunci "{{ searchQuery }}".
+      </p>
+      <button
+        class="rounded-xl border border-border bg-elevated px-4 py-2 text-xs font-semibold text-text-primary hover:border-primary transition"
+        @click="activeFilter = 'all'; searchQuery = '';"
+      >
+        Reset Filter & Pencarian
+      </button>
+    </div>
+
+    <!-- ASSETS GRID (Luxury Editorial Cards with Informative Badges) -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div
+        v-for="item in filteredAssets"
+        :key="item.id"
+        class="group flex flex-col overflow-hidden rounded-3xl border border-border bg-elevated/80 transition-all hover:border-border-hover hover:shadow-2xl backdrop-blur-md"
+      >
+        <!-- Thumbnail & Badges Container -->
+        <div class="relative aspect-video w-full overflow-hidden bg-elevated-subtle">
+          <img
+            :src="resolveListingImage(item)"
+            :alt="item.title"
+            class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            @error="handleImageFallback($event, item.title, item.category?.name || item.assetType)"
+          />
+
+          <!-- Informative Status Badge on Thumbnail -->
+          <div class="absolute top-3 left-3 z-10">
+            <StatusBadge :status="item.status" size="sm" :show-helper="true" />
+          </div>
+
+          <!-- Asset Type Pill -->
+          <span class="absolute top-3 right-3 rounded-lg bg-background/80 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold text-text-primary border border-border uppercase">
+            {{ item.assetType.replace('_', ' ') }}
+          </span>
+        </div>
+
+        <!-- Card Body -->
+        <div class="flex flex-1 flex-col p-5 sm:p-6 justify-between space-y-4">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-[11px] text-text-secondary">
+              <span>{{ item.category?.name || 'Katalog Digital' }}</span>
+              <span class="font-mono text-[10px] text-text-muted">ID: {{ item.id.slice(0, 8) }}</span>
+            </div>
+
+            <h3 class="font-heading text-xl font-bold text-text-primary line-clamp-1 group-hover:text-primary transition">
+              {{ item.title }}
+            </h3>
+
+            <p class="text-xs text-text-secondary line-clamp-2 leading-relaxed">
+              {{ item.shortDescription || item.description }}
+            </p>
+
+            <!-- Status Explanation Banners -->
+            <!-- 1. UNDER REVIEW INFORMATIVE BANNER -->
+            <div
+              v-if="item.status === 'pending'"
+              class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400 space-y-1"
+            >
+              <div class="flex items-center gap-1.5 font-bold">
+                <Clock class="h-3.5 w-3.5" />
+                <span>Sedang Dalam Proses Kurasi</span>
+              </div>
+              <p class="text-[11px] leading-relaxed text-text-secondary">
+                Tim kurator sedang menguji kelayakan berkas arsip dan lisensi. Review selesai dalam estimasi 1x24 jam.
+              </p>
+            </div>
+
+            <!-- 2. REJECTED FEEDBACK WITH ACTIONABLE GUIDE -->
+            <div
+              v-if="item.status === 'rejected'"
+              class="rounded-2xl border border-primary/40 bg-primary/10 p-3 text-xs text-primary space-y-1.5"
+            >
+              <div class="flex items-center gap-1.5 font-bold">
+                <AlertTriangle class="h-3.5 w-3.5 shrink-0" />
+                <span>Feedback Penolakan Kurator:</span>
+              </div>
+              <p class="text-[11px] leading-relaxed text-text-primary/90 italic bg-background/50 p-2 rounded-xl border border-primary/20">
+                "{{ item.rejectionReason || 'Berkas deliverable tidak memenuhi standar kelengkapan lisensi dan dokumentasi yang disyaratkan.' }}"
+              </p>
+              <p class="text-[10px] text-text-secondary">
+                Silakan lakukan revisi berkas sesuai catatan di atas lalu hubungi tim kurator atau ajukan kembali.
+              </p>
+            </div>
+
+            <!-- 3. APPROVED PUBLIC ACCESS -->
+            <div
+              v-if="item.status === 'approved'"
+              class="rounded-2xl border border-success/30 bg-success/5 p-2.5 text-xs text-success flex items-center justify-between"
+            >
+              <div class="flex items-center gap-1.5 font-medium">
+                <CheckCircle2 class="h-3.5 w-3.5" />
+                <span>Telah Live & Terindeks</span>
+              </div>
+
+              <router-link
+                :to="`/assets/${item.slug || item.id}`"
+                class="inline-flex items-center gap-1 text-[11px] font-bold text-success hover:underline"
+              >
+                <span>Lihat Publik</span>
+                <ExternalLink class="h-3 w-3" />
+              </router-link>
+            </div>
+          </div>
+
+          <!-- Price & Metrics Footer -->
+          <div class="border-t border-border pt-4 space-y-3">
+            <div class="flex items-center justify-between text-xs">
+              <div>
+                <span class="text-[10px] uppercase text-text-secondary">Harga Jual</span>
+                <div class="font-bold text-text-primary text-sm font-mono">
+                  {{ formatCurrency(Number(item.price)) }}
+                </div>
+              </div>
+
+              <div class="text-right">
+                <span class="text-[10px] uppercase text-secondary font-semibold">Bagi Hasil Anda (60%)</span>
+                <div class="font-bold text-secondary text-sm font-mono">
+                  {{ formatCurrency(Math.round(Number(item.price) * 0.6)) }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="flex items-center justify-between border-t border-border/50 pt-2.5 text-[11px] text-text-secondary">
+              <span class="flex items-center gap-1">
+                <Calendar class="h-3 w-3" />
+                {{ new Date(item.createdAt).toLocaleDateString() }}
+              </span>
+
+              <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1" title="Jumlah Pengunjung">
+                  <Eye class="h-3 w-3 text-text-muted" />
+                  {{ item.viewCount || 0 }}
+                </span>
+                <span class="flex items-center gap-1" title="Jumlah Unduhan">
+                  <Download class="h-3 w-3 text-secondary" />
+                  {{ item.downloadCount || 0 }}
+                </span>
+                <a
+                  v-if="item.demoUrl"
+                  :href="item.demoUrl"
+                  target="_blank"
+                  rel="noreferrer"
+                  class="hover:text-primary transition"
+                  title="Buka Demo URL"
+                >
+                  <ExternalLink class="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
