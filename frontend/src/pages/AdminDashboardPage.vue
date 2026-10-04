@@ -4,6 +4,9 @@ import { adminService } from '../services/admin';
 import { formatCurrency } from '../utils/formatters';
 import type { AdminDashboardData } from '../types';
 import AdminNav from '../components/AdminNav.vue';
+import StatCardSkeleton from '../components/StatCardSkeleton.vue';
+import TableSkeleton from '../components/TableSkeleton.vue';
+import Skeleton from '../components/Skeleton.vue';
 import {
   Users,
   Receipt,
@@ -16,7 +19,6 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowUpRight,
-  Loader2,
   Activity,
 } from 'lucide-vue-next';
 
@@ -55,15 +57,40 @@ async function loadDashboard() {
     <!-- Admin Sub-Navigation -->
     <AdminNav />
 
-    <!-- LOADING STATE -->
-    <div v-if="isLoading" class="py-24 text-center">
-      <div class="inline-flex items-center justify-center p-4 rounded-3xl bg-elevated border border-border text-primary animate-spin mb-4">
-        <Loader2 class="h-8 w-8" />
+    <!-- LOADING STATE: SKELETON LAYOUT -->
+    <div v-if="isLoading" class="space-y-8 animate-fade-in-up">
+      <!-- 5 KPI Stat Cards Skeleton -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCardSkeleton v-for="n in 5" :key="n" />
       </div>
-      <h2 class="font-heading text-2xl font-bold text-text-primary">
-        Memuat Metrik Sistem Admin...
-      </h2>
-      <p class="text-xs text-text-secondary mt-1">Mengambil statistik transaksi, antrean, dan pengguna.</p>
+
+      <!-- Two-Column Layout Skeleton -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <!-- Left 8 Cols -->
+        <div class="lg:col-span-8 space-y-8">
+          <div class="rounded-3xl border border-border/50 bg-elevated/70 p-6 space-y-4">
+            <Skeleton variant="title" width="w-56" height="h-6" rounded="rounded-lg" />
+            <TableSkeleton :columns="5" :rows="5" />
+          </div>
+          <div class="rounded-3xl border border-border/50 bg-elevated/70 p-6 space-y-4">
+            <Skeleton variant="title" width="w-48" height="h-6" rounded="rounded-lg" />
+            <div class="space-y-2 pt-1">
+              <Skeleton v-for="i in 3" :key="i" variant="text" width="w-full" height="h-10" rounded="rounded-xl" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Right 4 Cols -->
+        <div class="lg:col-span-4 space-y-6">
+          <div class="rounded-3xl border border-border/50 bg-elevated/70 p-6 space-y-4">
+            <Skeleton variant="title" width="w-40" height="h-6" rounded="rounded-lg" />
+            <div class="space-y-3 pt-2">
+              <Skeleton variant="text" width="w-full" height="h-16" rounded="rounded-xl" />
+              <Skeleton variant="text" width="w-full" height="h-16" rounded="rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ERROR STATE -->

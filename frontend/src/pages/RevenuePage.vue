@@ -2,6 +2,10 @@
 import { ref, onMounted } from 'vue';
 import { userService } from '../services/users';
 import { formatCurrency } from '../utils/formatters';
+import StatCardSkeleton from '../components/StatCardSkeleton.vue';
+import TableSkeleton from '../components/TableSkeleton.vue';
+import Skeleton from '../components/Skeleton.vue';
+import EmptyState from '../components/EmptyState.vue';
 import type { RevenueData } from '../types';
 import {
   Wallet,
@@ -177,10 +181,36 @@ async function handleSaveBankAccount() {
       </button>
     </div>
 
-    <!-- LOADING STATE -->
-    <div v-if="isLoading" class="py-24 text-center">
-      <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-3" />
-      <h3 class="font-heading text-xl font-bold text-text-primary">Memuat Buku Besar Keuangan...</h3>
+    <!-- LOADING STATE: SKELETON LAYOUT -->
+    <div v-if="isLoading" class="space-y-8 animate-fade-in-up">
+      <!-- 4 Metric Cards Skeleton -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCardSkeleton v-for="n in 4" :key="n" />
+      </div>
+
+      <!-- Middle 2-Column Skeleton -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div class="lg:col-span-7 rounded-3xl border border-border/50 bg-elevated/70 p-6 space-y-4">
+          <Skeleton variant="title" width="w-48" height="h-6" rounded="rounded-lg" />
+          <div class="space-y-3 pt-2">
+            <Skeleton variant="text" width="w-full" height="h-10" rounded="rounded-xl" />
+            <Skeleton variant="text" width="w-full" height="h-10" rounded="rounded-xl" />
+          </div>
+        </div>
+        <div class="lg:col-span-5 rounded-3xl border border-border/50 bg-elevated/70 p-6 space-y-4">
+          <Skeleton variant="title" width="w-40" height="h-6" rounded="rounded-lg" />
+          <div class="space-y-3 pt-2">
+            <Skeleton variant="text" width="w-full" height="h-8" rounded="rounded-lg" />
+            <Skeleton variant="text" width="w-full" height="h-8" rounded="rounded-lg" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Ledger Table Skeleton -->
+      <div class="space-y-3">
+        <Skeleton variant="title" width="w-56" height="h-6" rounded="rounded-lg" />
+        <TableSkeleton :columns="7" :rows="5" />
+      </div>
     </div>
 
     <div v-else-if="revenueData" class="space-y-8">
@@ -360,14 +390,14 @@ async function handleSaveBankAccount() {
         </div>
 
         <!-- Empty Ledger State -->
-        <div
+        <EmptyState
           v-if="revenueData.ledgerEntries.length === 0"
-          class="py-12 text-center text-xs text-text-secondary space-y-2"
-        >
-          <Wallet class="mx-auto h-8 w-8 text-text-secondary/60 mb-2" />
-          <p class="text-text-primary font-bold">Belum Ada Mutasi Saldo</p>
-          <p>Mutasi saldo 60% akan otomatis tercatat di sini begitu ada pembeli yang menyelesaikan transfer bank.</p>
-        </div>
+          compact
+          icon="receipt"
+          icon-color="secondary"
+          title="Belum Ada Mutasi Saldo"
+          description="Mutasi saldo bagi hasil 60% akan otomatis dicatat di buku besar ini begitu pembeli menyelesaikan transaksi dan pembayaran diverifikasi."
+        />
 
         <!-- Ledger Table (Desktop) -->
         <div v-else class="overflow-x-auto">

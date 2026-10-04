@@ -5,6 +5,10 @@ import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback } from '../utils/imageUrl';
 import type { DashboardSummary } from '../types';
 import UserNav from '../components/UserNav.vue';
+import StatCardSkeleton from '../components/StatCardSkeleton.vue';
+import TableSkeleton from '../components/TableSkeleton.vue';
+import Skeleton from '../components/Skeleton.vue';
+import EmptyState from '../components/EmptyState.vue';
 import {
   TrendingUp,
   Layers,
@@ -17,7 +21,6 @@ import {
   ArrowUpRight,
   Clock,
   CreditCard,
-  Loader2,
   Sparkles,
   ExternalLink,
   Plus,
@@ -58,15 +61,53 @@ async function loadDashboard() {
     <!-- User Navigation Sub-Header -->
     <UserNav />
 
-    <!-- LOADING STATE -->
-    <div v-if="isLoading" class="py-24 text-center">
-      <div class="inline-flex items-center justify-center p-4 rounded-3xl bg-elevated border border-border text-primary animate-spin mb-4">
-        <Loader2 class="h-8 w-8" />
+    <!-- LOADING STATE: SKELETON LAYOUT -->
+    <div v-if="isLoading" class="space-y-8 animate-fade-in-up">
+      <!-- Hero Greeting Skeleton -->
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="space-y-2">
+          <Skeleton variant="badge" width="w-40" height="h-5" rounded="rounded-full" />
+          <Skeleton variant="title" width="w-72" height="h-8" rounded="rounded-xl" />
+          <Skeleton variant="text" width="w-96" height="h-3.5" rounded="rounded" />
+        </div>
+        <div class="flex items-center gap-3">
+          <Skeleton variant="button" width="w-36" height="h-9" rounded="rounded-xl" />
+          <Skeleton variant="button" width="w-28" height="h-9" rounded="rounded-xl" />
+        </div>
       </div>
-      <h2 class="font-heading text-2xl font-bold text-text-primary">
-        Menyiapkan Dashboard Anda...
-      </h2>
-      <p class="text-xs text-text-secondary mt-1">Mengambil statistik dan catatan transaksi terbaru.</p>
+
+      <!-- 4 KPI Stat Cards Skeleton -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCardSkeleton v-for="n in 4" :key="n" />
+      </div>
+
+      <!-- Two-Column Layout Skeleton -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <!-- Left 8 Cols -->
+        <div class="lg:col-span-8 space-y-6">
+          <div class="rounded-3xl border border-border/50 bg-elevated/70 p-6 space-y-4">
+            <Skeleton variant="title" width="w-48" height="h-6" rounded="rounded-lg" />
+            <TableSkeleton :columns="5" :rows="4" />
+          </div>
+          <div class="rounded-3xl border border-border/50 bg-elevated/70 p-6 space-y-4">
+            <Skeleton variant="title" width="w-56" height="h-6" rounded="rounded-lg" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Skeleton v-for="i in 2" :key="i" variant="card" height="h-28" rounded="rounded-2xl" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Right 4 Cols -->
+        <div class="lg:col-span-4 space-y-6">
+          <div class="rounded-3xl border border-border/50 bg-elevated/70 p-6 space-y-4">
+            <Skeleton variant="title" width="w-40" height="h-6" rounded="rounded-lg" />
+            <div class="space-y-3 pt-2">
+              <Skeleton variant="text" width="w-full" height="h-10" rounded="rounded-xl" />
+              <Skeleton variant="text" width="w-full" height="h-10" rounded="rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ERROR STATE -->
@@ -212,13 +253,17 @@ async function loadDashboard() {
             </div>
 
             <!-- Empty State -->
-            <div
+            <EmptyState
               v-if="summary.recentTransactions.length === 0"
-              class="py-10 text-center space-y-2"
-            >
-              <Receipt class="mx-auto h-8 w-8 text-text-secondary opacity-60" />
-              <p class="text-xs text-text-secondary">Belum ada catatan aktivitas transaksi.</p>
-            </div>
+              compact
+              icon="receipt"
+              icon-color="muted"
+              title="Belum Ada Aktivitas Transaksi"
+              description="Catatan riwayat pembelian lisensi atau penjualan karya Anda akan tampil di sini."
+              action-text="Jelajahi Aset"
+              action-to="/explore"
+              action-variant="outline"
+            />
 
             <!-- Table -->
             <div v-else class="overflow-x-auto">
@@ -317,20 +362,17 @@ async function loadDashboard() {
             </div>
 
             <!-- Empty State -->
-            <div
+            <EmptyState
               v-if="summary.recentListings.length === 0"
-              class="py-10 text-center space-y-3"
-            >
-              <Layers class="mx-auto h-8 w-8 text-text-secondary opacity-60" />
-              <p class="text-xs text-text-secondary">Anda belum mengunggah karya atau template digital.</p>
-              <router-link
-                to="/upload"
-                class="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white shadow hover:bg-primary-hover transition"
-              >
-                <Plus class="h-4 w-4" />
-                <span>Upload Karya Pertama Anda</span>
-              </router-link>
-            </div>
+              compact
+              icon="sparkles"
+              icon-color="secondary"
+              title="Belum Ada Aset Diunggah"
+              description="Publikasikan karya digital Anda ke etalase publik dan nikmati bagi hasil 60% dari setiap penjualan."
+              action-text="Upload Karya Pertama"
+              action-to="/upload"
+              :action-icon="Plus"
+            />
 
             <!-- Grid of Recent Listings -->
             <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4">

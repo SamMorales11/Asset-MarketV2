@@ -3,9 +3,11 @@ import { ref, computed, onMounted } from 'vue';
 import { userService, type TransactionFullDetail } from '../services/users';
 import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl } from '../utils/imageUrl';
+import TableSkeleton from '../components/TableSkeleton.vue';
+import StatCardSkeleton from '../components/StatCardSkeleton.vue';
+import EmptyState from '../components/EmptyState.vue';
 import type { UnifiedTransactionItem } from '../types';
 import {
-  Receipt,
   ArrowUpRight,
   ArrowDownLeft,
   Clock,
@@ -15,7 +17,6 @@ import {
   Eye,
   X,
   ShieldCheck,
-  Loader2,
   ExternalLink,
 } from 'lucide-vue-next';
 
@@ -142,8 +143,13 @@ function closeDetailModal() {
       </router-link>
     </div>
 
+    <!-- METRICS SUMMARY SKELETON -->
+    <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <StatCardSkeleton v-for="n in 4" :key="n" />
+    </div>
+
     <!-- METRICS SUMMARY (Editorial Luxury Cards) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       <!-- Card 1: Pembelian (Buyer) -->
       <div class="rounded-3xl border border-border bg-elevated/70 p-5 backdrop-blur-md space-y-2">
         <div class="flex items-center justify-between text-xs text-text-secondary">
@@ -239,33 +245,21 @@ function closeDetailModal() {
       </div>
     </div>
 
-    <!-- LOADING STATE -->
-    <div v-if="isLoading" class="py-24 text-center">
-      <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-3" />
-      <h3 class="font-heading text-xl font-bold text-text-primary">Memuat Riwayat Transaksi...</h3>
+    <!-- LOADING STATE: TABLE SKELETON -->
+    <div v-if="isLoading" class="space-y-4">
+      <TableSkeleton :columns="7" :rows="6" />
     </div>
 
     <!-- EMPTY STATE -->
-    <div
+    <EmptyState
       v-else-if="filteredTransactions.length === 0"
-      class="rounded-3xl border border-border bg-elevated/40 p-16 text-center"
-    >
-      <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-elevated border border-border text-text-secondary mb-4">
-        <Receipt class="h-8 w-8 text-primary opacity-80" />
-      </div>
-      <h3 class="font-heading text-2xl font-bold text-text-primary mb-1">
-        Belum Ada Transaksi Tercatat
-      </h3>
-      <p class="max-w-md mx-auto text-xs text-text-secondary mb-6 leading-relaxed">
-        Riwayat pembelian aset atau transaksi penjualan karya Anda akan tampil di sini secara rinci.
-      </p>
-      <router-link
-        to="/explore"
-        class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs font-semibold text-white shadow hover:bg-primary-hover transition"
-      >
-        <span>Jelajahi Katalog Marketplace</span>
-      </router-link>
-    </div>
+      icon="receipt"
+      icon-color="primary"
+      title="Belum Ada Transaksi Tercatat"
+      description="Riwayat pembelian aset atau transaksi penjualan karya Anda akan tampil di sini secara rinci dan otomatis diperbarui setiap kali terjadi transaksi."
+      action-text="Jelajahi Katalog Marketplace"
+      action-to="/explore"
+    />
 
     <!-- LUXURY EDITORIAL TRANSACTIONS TABLE (DESKTOP) -->
     <div v-else class="overflow-hidden rounded-3xl border border-border bg-elevated/70 shadow-2xl backdrop-blur-md">

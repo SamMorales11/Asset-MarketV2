@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { assetService } from '../services/assets';
 import StatusBadge from '../components/StatusBadge.vue';
+import EmptyState from '../components/EmptyState.vue';
+import Skeleton from '../components/Skeleton.vue';
 import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback, getLuxuryPlaceholder } from '../utils/imageUrl';
 import type { Asset, AssetStatus } from '../types';
@@ -17,7 +19,6 @@ import {
   CheckCircle2,
   Clock,
   AlertOctagon,
-  Sparkles,
   Layers,
 } from 'lucide-vue-next';
 
@@ -247,14 +248,23 @@ const filteredAssets = computed(() => {
     <!-- Loading Skeletons -->
     <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div
-        v-for="n in 3"
+        v-for="n in 6"
         :key="n"
-        class="animate-pulse overflow-hidden rounded-2xl border border-border bg-elevated/50 p-5 space-y-4"
+        class="overflow-hidden rounded-3xl border border-border/50 bg-elevated/70 p-5 space-y-4 shadow-xl"
       >
-        <div class="aspect-video w-full rounded-xl bg-elevated-subtle"></div>
-        <div class="h-6 w-3/4 rounded-lg bg-elevated-subtle"></div>
-        <div class="h-4 w-full rounded-lg bg-elevated-subtle"></div>
-        <div class="h-8 w-1/2 rounded-lg bg-elevated-subtle"></div>
+        <Skeleton variant="card" height="h-44" rounded="rounded-2xl" />
+        <div class="flex items-center justify-between">
+          <Skeleton variant="badge" width="w-20" height="h-5" rounded="rounded-full" />
+          <Skeleton variant="text" width="w-24" height="h-3" rounded="rounded" />
+        </div>
+        <Skeleton variant="title" width="w-4/5" height="h-6" rounded="rounded-lg" />
+        <div class="pt-2 border-t border-border/30 flex items-center justify-between">
+          <Skeleton variant="text" width="w-24" height="h-4" rounded="rounded" />
+          <div class="flex gap-2">
+            <Skeleton variant="button" width="w-16" height="h-7" rounded="rounded-lg" />
+            <Skeleton variant="button" width="w-16" height="h-7" rounded="rounded-lg" />
+          </div>
+        </div>
       </div>
     </div>
 
@@ -274,47 +284,29 @@ const filteredAssets = computed(() => {
     </div>
 
     <!-- Empty State: No Assets at All -->
-    <div
+    <EmptyState
       v-else-if="assets.length === 0"
-      class="rounded-3xl border border-border bg-elevated/40 p-16 text-center backdrop-blur-md"
-    >
-      <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/15 text-secondary border border-secondary/30 mb-4">
-        <Sparkles class="h-8 w-8" />
-      </div>
-      <h3 class="font-heading text-3xl font-bold text-text-primary mb-2">
-        Belum Ada Aset yang Diunggah
-      </h3>
-      <p class="mx-auto max-w-md text-xs sm:text-sm text-text-secondary mb-6 leading-relaxed">
-        Mulailah memonetisasi karya digital Anda di Asset Market. Dapatkan bagi hasil 60% untuk setiap transaksi penjualan dengan sistem penyaluran otomatis.
-      </p>
-      <router-link
-        to="/upload"
-        class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-white shadow-xl shadow-primary/25 hover:bg-primary-hover transition transform active:scale-95"
-      >
-        <Plus class="h-4 w-4" />
-        <span>Unggah Aset Digital Pertama Anda</span>
-      </router-link>
-    </div>
+      icon="sparkles"
+      icon-color="secondary"
+      title="Belum Ada Aset yang Diunggah"
+      description="Mulailah memonetisasi karya digital Anda di Asset Market. Dapatkan bagi hasil 60% untuk setiap transaksi penjualan dengan sistem penyaluran otomatis."
+      action-text="Unggah Aset Digital Pertama Anda"
+      action-to="/upload"
+      :action-icon="Plus"
+    />
 
     <!-- Empty State: Filter / Search Returned 0 Items -->
-    <div
+    <EmptyState
       v-else-if="filteredAssets.length === 0"
-      class="rounded-3xl border border-border bg-elevated/40 p-12 text-center backdrop-blur-md"
-    >
-      <Search class="mx-auto h-10 w-10 text-text-muted mb-3" />
-      <h3 class="font-heading text-xl font-bold text-text-primary mb-1">
-        Tidak Ada Aset yang Sesuai
-      </h3>
-      <p class="text-xs text-text-secondary mb-4">
-        Tidak ditemukan aset pada kategori filter ini atau dengan kata kunci "{{ searchQuery }}".
-      </p>
-      <button
-        class="rounded-xl border border-border bg-elevated px-4 py-2 text-xs font-semibold text-text-primary hover:border-primary transition"
-        @click="activeFilter = 'all'; searchQuery = '';"
-      >
-        Reset Filter & Pencarian
-      </button>
-    </div>
+      compact
+      icon="search"
+      icon-color="muted"
+      title="Tidak Ada Aset yang Sesuai"
+      :description="`Tidak ditemukan karya aset pada kategori filter ini atau dengan kata kunci '${searchQuery}'.`"
+      action-text="Reset Filter & Pencarian"
+      action-variant="outline"
+      @action="activeFilter = 'all'; searchQuery = '';"
+    />
 
     <!-- ASSETS GRID (Luxury Editorial Cards with Informative Badges) -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -4,15 +4,15 @@ import { userService } from '../services/users';
 import { formatFileSize } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback } from '../utils/imageUrl';
 import { useToast } from '../composables/useToast';
+import EmptyState from '../components/EmptyState.vue';
+import Skeleton from '../components/Skeleton.vue';
 import type { PurchasedAsset } from '../types';
 import {
-  FolderArchive,
   Download,
   Search,
   Sparkles,
   Calendar,
   FileArchive,
-  Loader2,
   CheckCircle2,
   ExternalLink,
 } from 'lucide-vue-next';
@@ -200,15 +200,30 @@ async function handleDownload(params: {
       </div>
     </div>
 
-    <!-- LOADING STATE -->
-    <div v-if="isLoading" class="py-24 text-center">
-      <div class="inline-flex items-center justify-center p-4 rounded-3xl bg-elevated border border-border text-primary animate-spin mb-4">
-        <Loader2 class="h-8 w-8" />
+    <!-- LOADING SKELETONS GRID -->
+    <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div
+        v-for="n in 4"
+        :key="n"
+        class="overflow-hidden rounded-3xl border border-border/50 bg-elevated/70 p-6 backdrop-blur-md shadow-xl flex flex-col justify-between space-y-4"
+      >
+        <div class="flex items-start gap-4">
+          <Skeleton variant="card" width="w-24" height="h-24" rounded="rounded-2xl" />
+          <div class="flex-1 space-y-2.5">
+            <div class="flex items-center gap-2">
+              <Skeleton variant="badge" width="w-16" height="h-4" rounded="rounded" />
+              <Skeleton variant="text" width="w-20" height="h-3" rounded="rounded" />
+            </div>
+            <Skeleton variant="title" width="w-3/4" height="h-5" rounded="rounded-md" />
+            <Skeleton variant="text" width="w-1/2" height="h-3" rounded="rounded" />
+            <Skeleton variant="text" width="w-1/3" height="h-2.5" rounded="rounded" />
+          </div>
+        </div>
+        <div class="flex items-center justify-between border-t border-border/30 pt-4 mt-2">
+          <Skeleton variant="button" width="w-28" height="h-9" rounded="rounded-xl" />
+          <Skeleton variant="button" width="w-32" height="h-9" rounded="rounded-xl" />
+        </div>
       </div>
-      <h2 class="font-heading text-2xl font-bold text-text-primary">
-        Loading Your Digital Library...
-      </h2>
-      <p class="text-xs text-text-secondary mt-1">Retrieving licensed digital files.</p>
     </div>
 
     <!-- ERROR STATE -->
@@ -225,36 +240,30 @@ async function handleDownload(params: {
       </button>
     </div>
 
-    <!-- EMPTY STATE -->
-    <div
+    <!-- EMPTY STATE: NO PURCHASED ASSETS -->
+    <EmptyState
       v-else-if="purchases.length === 0"
-      class="rounded-3xl border border-border bg-elevated/40 p-16 text-center"
-    >
-      <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-elevated border border-border text-text-secondary mb-6 shadow-xl">
-        <FolderArchive class="h-10 w-10 text-secondary opacity-80" />
-      </div>
-      <h2 class="font-heading text-3xl font-bold text-text-primary mb-2">
-        Belum Ada Aset yang Dimiliki
-      </h2>
-      <p class="max-w-md mx-auto text-xs text-text-secondary leading-relaxed mb-8">
-        Setelah Anda membeli aset digital dan menyelesaikan verifikasi transfer, seluruh arsip source code, template, dan model 3D Anda akan tersimpan di sini secara permanen.
-      </p>
-      <router-link
-        to="/explore"
-        class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3.5 text-xs font-semibold text-white shadow-xl shadow-primary/20 hover:bg-primary-hover transition transform active:scale-[0.98]"
-      >
-        <Sparkles class="h-4 w-4" />
-        <span>Jelajahi Katalog Aset</span>
-      </router-link>
-    </div>
+      icon="library"
+      icon-color="secondary"
+      title="Belum Ada Aset yang Dimiliki"
+      description="Setelah Anda membeli aset digital atau mengklaim aset gratis, seluruh berkas deliverable berlisensi Anda akan tersimpan di sini secara permanen dan siap diunduh kapan saja."
+      action-text="Jelajahi Katalog Aset"
+      action-to="/explore"
+      :action-icon="Sparkles"
+    />
 
     <!-- NO SEARCH RESULTS -->
-    <div
+    <EmptyState
       v-else-if="filteredPurchases.length === 0"
-      class="rounded-3xl border border-border bg-elevated/40 p-12 text-center"
-    >
-      <p class="text-xs text-text-secondary">Tidak ada aset yang cocok dengan kata kunci pencarian Anda.</p>
-    </div>
+      compact
+      icon="search"
+      icon-color="muted"
+      title="Tidak Ada Aset yang Cocok"
+      description="Tidak ada koleksi aset yang cocok dengan filter kategori atau kata kunci pencarian Anda."
+      action-text="Reset Pencarian"
+      action-variant="outline"
+      @action="searchQuery = ''; selectedType = 'all';"
+    />
 
     <!-- OWNED ASSETS GRID (Luxury Editorial Cards) -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">

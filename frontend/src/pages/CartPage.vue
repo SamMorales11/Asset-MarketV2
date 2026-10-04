@@ -5,8 +5,8 @@ import { useCartStore } from '../stores/cart';
 import { useAuthStore } from '../stores/auth';
 import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback } from '../utils/imageUrl';
+import EmptyState from '../components/EmptyState.vue';
 import {
-  ShoppingBag,
   Trash2,
   ArrowRight,
   ShieldCheck,
@@ -85,27 +85,16 @@ function handleClearCart() {
     </div>
 
     <!-- EMPTY STATE -->
-    <div
+    <EmptyState
       v-if="cartStore.itemCount === 0"
-      class="rounded-3xl border border-border bg-elevated/40 p-16 text-center"
-    >
-      <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-elevated border border-border text-text-secondary mb-6 shadow-xl">
-        <ShoppingBag class="h-10 w-10 text-primary opacity-80" />
-      </div>
-      <h2 class="font-heading text-3xl font-bold text-text-primary mb-2">
-        Your Cart is Empty
-      </h2>
-      <p class="max-w-md mx-auto text-xs text-text-secondary leading-relaxed mb-8">
-        You haven't added any digital assets yet. Discover high quality source code, UI kits, 3D models, and graphics crafted by top creators.
-      </p>
-      <router-link
-        to="/explore"
-        class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3.5 text-xs font-semibold text-white shadow-xl shadow-primary/20 hover:bg-primary-hover transition transform active:scale-[0.98]"
-      >
-        <Sparkles class="h-4 w-4" />
-        <span>Explore Curated Assets</span>
-      </router-link>
-    </div>
+      icon="cart"
+      icon-color="primary"
+      title="Keranjang Belanja Anda Kosong"
+      description="Anda belum menambahkan aset digital ke keranjang belanja. Jelajahi ribuan UI template, source code, model 3D, dan grafis berkualitas tinggi siap pakai."
+      action-text="Jelajahi Katalog Aset"
+      action-to="/explore"
+      :action-icon="Sparkles"
+    />
 
     <!-- CART WITH ITEMS (2-Column Grid) -->
     <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

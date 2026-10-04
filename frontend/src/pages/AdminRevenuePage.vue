@@ -4,6 +4,9 @@ import { adminService } from '../services/admin';
 import { formatCurrency } from '../utils/formatters';
 import type { AdminRevenueResponse, AdminUserRevenueDetail } from '../types';
 import AdminNav from '../components/AdminNav.vue';
+import StatCardSkeleton from '../components/StatCardSkeleton.vue';
+import TableSkeleton from '../components/TableSkeleton.vue';
+import EmptyState from '../components/EmptyState.vue';
 import {
   Coins,
   Search,
@@ -108,7 +111,10 @@ async function openSellerDetail(userId: string) {
     </div>
 
     <!-- 1. HIGH-LEVEL PLATFORM SUMMARY METRIC CARDS -->
-    <div v-if="revenueData" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <StatCardSkeleton v-for="n in 4" :key="n" />
+    </div>
+    <div v-else-if="revenueData" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       <!-- Card 1: Total Platform 40% -->
       <div class="rounded-3xl border border-secondary/30 bg-secondary/10 p-5 backdrop-blur-md space-y-2 shadow-lg">
         <div class="flex items-center justify-between text-xs text-secondary font-bold uppercase tracking-wider">
@@ -187,11 +193,23 @@ async function openSellerDetail(userId: string) {
       </button>
     </div>
 
-    <!-- LOADING STATE -->
-    <div v-if="isLoading" class="py-20 text-center">
-      <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-3" />
-      <p class="text-xs text-text-secondary">Menghitung buku besar pendapatan kreator...</p>
+    <!-- LOADING STATE: TABLE SKELETON -->
+    <div v-if="isLoading" class="space-y-4">
+      <TableSkeleton :columns="8" :rows="5" />
     </div>
+
+    <!-- EMPTY STATE -->
+    <EmptyState
+      v-else-if="revenueData && revenueData.sellers.length === 0"
+      compact
+      icon="receipt"
+      icon-color="muted"
+      title="Tidak Ada Data Penjual"
+      description="Tidak ditemukan kreator atau catatan transaksi yang sesuai dengan kata kunci pencarian Anda."
+      action-text="Reset Pencarian"
+      action-variant="outline"
+      @action="searchQuery = ''; loadRevenue();"
+    />
 
     <!-- SELLERS REVENUE TABLE (HIGH INFORMATION DENSITY) -->
     <div v-else-if="revenueData" class="overflow-hidden rounded-3xl border border-border bg-elevated/80 shadow-2xl backdrop-blur-md">

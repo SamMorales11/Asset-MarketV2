@@ -6,12 +6,12 @@ import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback, getLuxuryPlaceholder } from '../utils/imageUrl';
 import { useToast } from '../composables/useToast';
 import AdminNav from '../components/AdminNav.vue';
+import EmptyState from '../components/EmptyState.vue';
+import Skeleton from '../components/Skeleton.vue';
 import {
   ShieldAlert,
   CheckCircle2,
   XCircle,
-  Loader2,
-  FolderCheck,
   X,
   Check,
   Eye,
@@ -637,45 +637,51 @@ async function submitPaymentReject() {
         </div>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="isAssetsLoading" class="py-16 text-center">
-        <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-3" />
-        <p class="text-xs text-text-secondary">Memuat antrean moderasi aset...</p>
+      <!-- Loading Skeletons -->
+      <div v-if="isAssetsLoading" class="space-y-4">
+        <div
+          v-for="n in 3"
+          :key="n"
+          class="rounded-3xl border border-border/50 bg-elevated/70 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl"
+        >
+          <div class="flex items-start gap-4 flex-1">
+            <Skeleton variant="avatar" width="w-4" height="h-4" rounded="rounded" />
+            <Skeleton variant="card" width="w-24" height="h-24" rounded="rounded-2xl" />
+            <div class="flex-1 space-y-2.5">
+              <Skeleton variant="badge" width="w-20" height="h-5" rounded="rounded" />
+              <Skeleton variant="title" width="w-2/3" height="h-6" rounded="rounded-lg" />
+              <Skeleton variant="text" width="w-1/2" height="h-3.5" rounded="rounded" />
+              <Skeleton variant="text" width="w-1/3" height="h-3" rounded="rounded" />
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <Skeleton variant="button" width="w-24" height="h-10" rounded="rounded-xl" />
+            <Skeleton variant="button" width="w-20" height="h-10" rounded="rounded-xl" />
+          </div>
+        </div>
       </div>
 
       <!-- Empty State -->
-      <div
+      <EmptyState
         v-else-if="pendingAssets.length === 0"
-        class="rounded-3xl border border-border bg-elevated/40 p-16 text-center"
-      >
-        <FolderCheck class="mx-auto h-12 w-12 text-success/80 mb-3" />
-        <h3 class="font-heading text-2xl font-bold text-text-primary mb-1">
-          Antrean Review Bersih!
-        </h3>
-        <p class="text-xs text-text-secondary">
-          Tidak ada aset baru yang sedang menunggu kurasi saat ini. Semua kiriman telah diproses.
-        </p>
-      </div>
+        icon="shield-check"
+        icon-color="success"
+        title="Antrean Kurasi Bersih!"
+        description="Tidak ada aset baru yang sedang menunggu kurasi moderasi saat ini. Semua kiriman kreator telah selesai diproses."
+      />
 
       <!-- Filter No Match Empty State -->
-      <div
+      <EmptyState
         v-else-if="filteredAssets.length === 0"
-        class="rounded-3xl border border-border bg-elevated/40 p-12 text-center"
-      >
-        <Search class="mx-auto h-10 w-10 text-text-secondary/50 mb-3" />
-        <h3 class="font-heading text-xl font-bold text-text-primary mb-1">
-          Tidak Ada Aset yang Cocok
-        </h3>
-        <p class="text-xs text-text-secondary mb-4">
-          Tidak ditemukan aset dengan kata kunci atau filter tipe yang dipilih.
-        </p>
-        <button
-          class="rounded-xl border border-border bg-elevated px-4 py-2 text-xs font-semibold text-text-primary hover:border-primary transition"
-          @click="assetSearch = ''; assetTypeFilter = 'all';"
-        >
-          Reset Filter
-        </button>
-      </div>
+        compact
+        icon="search"
+        icon-color="muted"
+        title="Tidak Ada Aset yang Cocok"
+        description="Tidak ditemukan aset dengan kata kunci atau filter tipe yang dipilih."
+        action-text="Reset Filter"
+        action-variant="outline"
+        @action="assetSearch = ''; assetTypeFilter = 'all';"
+      />
 
       <!-- Asset Items Queue -->
       <div v-else class="space-y-4">
@@ -817,45 +823,46 @@ async function submitPaymentReject() {
         </div>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="isPaymentsLoading" class="py-16 text-center">
-        <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-3" />
-        <p class="text-xs text-text-secondary">Memuat antrean verifikasi pembayaran...</p>
+      <!-- Loading Skeletons -->
+      <div v-if="isPaymentsLoading" class="space-y-4">
+        <div
+          v-for="n in 3"
+          :key="n"
+          class="rounded-3xl border border-border/50 bg-elevated/70 p-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 shadow-xl"
+        >
+          <div class="space-y-2.5 flex-1">
+            <Skeleton variant="title" width="w-48" height="h-5" rounded="rounded" />
+            <Skeleton variant="text" width="w-64" height="h-4" rounded="rounded" />
+            <Skeleton variant="text" width="w-36" height="h-3" rounded="rounded" />
+          </div>
+          <div class="flex items-center gap-2">
+            <Skeleton variant="button" width="w-28" height="h-10" rounded="rounded-xl" />
+            <Skeleton variant="button" width="w-24" height="h-10" rounded="rounded-xl" />
+          </div>
+        </div>
       </div>
 
       <!-- Empty State -->
-      <div
+      <EmptyState
         v-else-if="pendingPayments.length === 0"
-        class="rounded-3xl border border-border bg-elevated/40 p-16 text-center"
-      >
-        <CheckCircle2 class="mx-auto h-12 w-12 text-success/80 mb-3" />
-        <h3 class="font-heading text-2xl font-bold text-text-primary mb-1">
-          Semua Pembayaran Telah Terverifikasi!
-        </h3>
-        <p class="text-xs text-text-secondary">
-          Tidak ada antrian konfirmasi bukti transfer manual yang tertunda saat ini.
-        </p>
-      </div>
+        icon="shield-check"
+        icon-color="success"
+        title="Semua Pembayaran Telah Terverifikasi!"
+        description="Tidak ada antrian konfirmasi bukti transfer manual yang tertunda saat ini. Seluruh escrow pembayaran berada dalam status mutakhir."
+      />
 
       <!-- Filter No Match State -->
-      <div
+      <EmptyState
         v-else-if="filteredPayments.length === 0"
-        class="rounded-3xl border border-border bg-elevated/40 p-12 text-center"
-      >
-        <Search class="mx-auto h-10 w-10 text-text-secondary/50 mb-3" />
-        <h3 class="font-heading text-xl font-bold text-text-primary mb-1">
-          Tidak Ditemukan Pembayaran
-        </h3>
-        <p class="text-xs text-text-secondary mb-4">
-          Tidak ada transaksi yang cocok dengan kata kunci pencarian.
-        </p>
-        <button
-          class="rounded-xl border border-border bg-elevated px-4 py-2 text-xs font-semibold text-text-primary hover:border-primary transition"
-          @click="paymentSearch = ''"
-        >
-          Reset Pencarian
-        </button>
-      </div>
+        compact
+        icon="search"
+        icon-color="muted"
+        title="Tidak Ditemukan Pembayaran"
+        description="Tidak ada transaksi yang cocok dengan kata kunci pencarian Anda."
+        action-text="Reset Pencarian"
+        action-variant="outline"
+        @action="paymentSearch = ''"
+      />
 
       <!-- PENDING PAYMENTS LIST -->
       <div v-else class="space-y-4">
