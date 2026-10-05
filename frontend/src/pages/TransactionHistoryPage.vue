@@ -6,6 +6,7 @@ import { getAssetImageUrl } from '../utils/imageUrl';
 import TableSkeleton from '../components/TableSkeleton.vue';
 import StatCardSkeleton from '../components/StatCardSkeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
+import Skeleton from '../components/Skeleton.vue';
 import type { UnifiedTransactionItem } from '../types';
 import {
   ArrowUpRight,
@@ -250,15 +251,28 @@ function closeDetailModal() {
       <TableSkeleton :columns="7" :rows="6" />
     </div>
 
-    <!-- EMPTY STATE -->
+    <!-- EMPTY STATE: NO TRANSACTIONS AT ALL -->
     <EmptyState
-      v-else-if="filteredTransactions.length === 0"
+      v-else-if="transactions.length === 0"
       icon="receipt"
       icon-color="primary"
       title="Belum Ada Transaksi Tercatat"
       description="Riwayat pembelian aset atau transaksi penjualan karya Anda akan tampil di sini secara rinci dan otomatis diperbarui setiap kali terjadi transaksi."
       action-text="Jelajahi Katalog Marketplace"
       action-to="/explore"
+    />
+
+    <!-- EMPTY STATE: FILTER SEARCH RETURNED 0 -->
+    <EmptyState
+      v-else-if="filteredTransactions.length === 0"
+      compact
+      icon="search"
+      icon-color="muted"
+      title="Tidak Ada Transaksi yang Cocok"
+      description="Tidak ada catatan transaksi yang sesuai dengan filter atau kata kunci pencarian Anda."
+      action-text="Reset Filter & Pencarian"
+      action-variant="outline"
+      @action="searchQuery = ''; activeRole = 'all'; activeStatus = 'all'; loadTransactions();"
     />
 
     <!-- LUXURY EDITORIAL TRANSACTIONS TABLE (DESKTOP) -->
@@ -416,9 +430,26 @@ function closeDetailModal() {
           </button>
         </div>
 
-        <div v-if="isDetailLoading" class="py-12 text-center">
-          <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-2" />
-          <p class="text-xs text-text-secondary">Mengambil rincian transaksi...</p>
+        <!-- Loading Skeleton inside Modal -->
+        <div v-if="isDetailLoading" class="space-y-6">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 rounded-2xl border border-border/50 bg-background/60 p-4">
+            <div v-for="i in 4" :key="i" class="space-y-1.5">
+              <Skeleton variant="text" width="w-20" height="h-3" rounded="rounded" />
+              <Skeleton variant="title" width="w-28" height="h-4" rounded="rounded" />
+            </div>
+          </div>
+          <div class="space-y-3">
+            <Skeleton variant="title" width="w-36" height="h-5" rounded="rounded" />
+            <div class="space-y-2">
+              <div v-for="i in 2" :key="i" class="flex items-center justify-between rounded-2xl border border-border/50 bg-background p-3.5">
+                <div class="space-y-1.5">
+                  <Skeleton variant="title" width="w-48" height="h-4" rounded="rounded" />
+                  <Skeleton variant="text" width="w-32" height="h-3" rounded="rounded" />
+                </div>
+                <Skeleton variant="title" width="w-20" height="h-4" rounded="rounded" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="detailData" class="space-y-6">

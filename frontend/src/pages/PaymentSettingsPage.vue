@@ -4,6 +4,7 @@ import { userService } from '../services/users';
 import { useAuthStore } from '../stores/auth';
 import type { PaymentSettings } from '../types';
 import UserNav from '../components/UserNav.vue';
+import Skeleton from '../components/Skeleton.vue';
 import {
   Building2,
   CreditCard,
@@ -250,10 +251,37 @@ async function handleDeleteSettings() {
       </button>
     </div>
 
-    <!-- LOADING STATE -->
-    <div v-if="isLoading" class="py-20 text-center">
-      <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-3" />
-      <p class="text-xs text-text-secondary">Memuat data rekening pembayaran...</p>
+    <!-- LOADING STATE: SKELETON LAYOUT -->
+    <div v-if="isLoading" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <!-- Left Column: Form Skeleton (7 Cols) -->
+      <div class="lg:col-span-7 rounded-3xl border border-border/50 bg-elevated/70 p-6 sm:p-8 space-y-6">
+        <div class="border-b border-border/40 pb-4 space-y-2">
+          <Skeleton variant="title" width="w-56" height="h-7" rounded="rounded-lg" />
+          <Skeleton variant="text" width="w-80" height="h-3" rounded="rounded" />
+        </div>
+        <div class="space-y-5">
+          <div v-for="i in 4" :key="i" class="space-y-2">
+            <Skeleton variant="text" width="w-28" height="h-3" rounded="rounded" />
+            <Skeleton variant="text" width="w-full" height="h-10" rounded="rounded-xl" />
+          </div>
+          <div class="pt-4 border-t border-border/30">
+            <Skeleton variant="button" width="w-36" height="h-11" rounded="rounded-xl" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Card Preview Skeleton (5 Cols) -->
+      <div class="lg:col-span-5 space-y-6">
+        <div class="rounded-3xl border border-border/50 bg-elevated/60 p-6 space-y-4">
+          <Skeleton variant="title" width="w-40" height="h-5" rounded="rounded" />
+          <Skeleton variant="card" height="h-48" rounded="rounded-3xl" />
+        </div>
+        <div class="rounded-3xl border border-border/50 bg-elevated/40 p-6 space-y-3">
+          <Skeleton variant="text" width="w-32" height="h-4" rounded="rounded" />
+          <Skeleton variant="text" width="w-full" height="h-3" rounded="rounded" />
+          <Skeleton variant="text" width="w-4/5" height="h-3" rounded="rounded" />
+        </div>
+      </div>
     </div>
 
     <!-- MAIN FORM GRID (F-PATTERN) -->

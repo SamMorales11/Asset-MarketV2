@@ -113,8 +113,20 @@ const filteredAssets = computed(() => {
       </router-link>
     </div>
 
+    <!-- Inventory Stat Cards Skeletons -->
+    <div v-if="isLoading" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <div v-for="n in 4" :key="n" class="rounded-2xl border border-border/50 bg-elevated/70 p-4 space-y-2.5 shadow-md">
+        <div class="flex items-center justify-between">
+          <Skeleton variant="text" width="w-20" height="h-3" rounded="rounded" />
+          <Skeleton variant="avatar" width="w-4" height="h-4" rounded="rounded" />
+        </div>
+        <Skeleton variant="title" width="w-14" height="h-7" rounded="rounded-md" />
+        <Skeleton variant="text" width="w-28" height="h-2.5" rounded="rounded" />
+      </div>
+    </div>
+
     <!-- Quick Inventory Stat Cards (Editorial Luxury Strip) -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+    <div v-else class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
       <!-- Total Listings -->
       <div
         class="rounded-2xl border border-border bg-elevated/80 p-4 backdrop-blur-md cursor-pointer transition hover:border-border-hover"

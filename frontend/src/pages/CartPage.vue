@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth';
 import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback } from '../utils/imageUrl';
 import EmptyState from '../components/EmptyState.vue';
+import Skeleton from '../components/Skeleton.vue';
 import {
   Trash2,
   ArrowRight,
@@ -84,9 +85,55 @@ function handleClearCart() {
       </button>
     </div>
 
+    <!-- LOADING SKELETON (2-Column Grid matching Cart layout) -->
+    <div v-if="cartStore.isLoading" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <!-- Left Column: Item List Skeletons -->
+      <div class="lg:col-span-8 space-y-4">
+        <div
+          v-for="n in 3"
+          :key="n"
+          class="rounded-3xl border border-border/50 bg-elevated/70 p-5 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center gap-5 shadow-xl"
+        >
+          <!-- Thumbnail Skeleton -->
+          <Skeleton variant="card" width="w-full sm:w-36" height="h-24" rounded="rounded-2xl" />
+          <!-- Metadata & Title Skeleton -->
+          <div class="flex-1 space-y-2 w-full">
+            <Skeleton variant="text" width="w-32" height="h-3" rounded="rounded" />
+            <Skeleton variant="title" width="w-3/4" height="h-5" rounded="rounded-md" />
+            <Skeleton variant="text" width="w-24" height="h-3" rounded="rounded" />
+          </div>
+          <!-- Price Skeleton -->
+          <div class="sm:text-right space-y-2 w-full sm:w-28 flex sm:flex-col justify-between items-center sm:items-end">
+            <Skeleton variant="title" width="w-24" height="h-6" rounded="rounded-md" />
+            <Skeleton variant="button" width="w-16" height="h-6" rounded="rounded-lg" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Order Summary Skeleton -->
+      <div class="lg:col-span-4 rounded-3xl border border-border/50 bg-elevated/70 p-6 backdrop-blur-md space-y-6 shadow-xl">
+        <Skeleton variant="title" width="w-40" height="h-6" rounded="rounded-lg" />
+        <div class="space-y-3">
+          <div class="flex justify-between">
+            <Skeleton variant="text" width="w-24" height="h-4" rounded="rounded" />
+            <Skeleton variant="text" width="w-20" height="h-4" rounded="rounded" />
+          </div>
+          <div class="flex justify-between">
+            <Skeleton variant="text" width="w-20" height="h-4" rounded="rounded" />
+            <Skeleton variant="text" width="w-16" height="h-4" rounded="rounded" />
+          </div>
+          <div class="pt-3 border-t border-border/40 flex justify-between">
+            <Skeleton variant="text" width="w-28" height="h-5" rounded="rounded" />
+            <Skeleton variant="title" width="w-24" height="h-6" rounded="rounded-md" />
+          </div>
+        </div>
+        <Skeleton variant="button" width="w-full" height="h-12" rounded="rounded-2xl" />
+      </div>
+    </div>
+
     <!-- EMPTY STATE -->
     <EmptyState
-      v-if="cartStore.itemCount === 0"
+      v-else-if="cartStore.itemCount === 0"
       icon="cart"
       icon-color="primary"
       title="Keranjang Belanja Anda Kosong"

@@ -15,6 +15,11 @@
   h1, h2, h3, h4, .font-heading {
     font-family: 'Instrument Serif', Georgia, serif;
   }
+
+  /* Tabular numbers for data-heavy elements */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 @layer utilities {
@@ -46,22 +51,38 @@
   animation: shimmer 1.8s ease-in-out infinite;
 }
 
-/* Editorial card lift effect */
+/* Skeleton subtle pulse animation */
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 1;
+    background-color: #1A1A1A;
+  }
+  50% {
+    opacity: 0.55;
+    background-color: #262626;
+  }
+}
+
+.skeleton-pulse {
+  animation: pulseSubtle 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Editorial card lift effect — refined easing */
 .card-lift {
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1),
               border-color 0.3s ease;
 }
 .card-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(217, 58, 15, 0.08);
+  transform: translateY(-6px);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(217, 58, 15, 0.06);
 }
 
 /* Fade-in stagger for grid items */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;

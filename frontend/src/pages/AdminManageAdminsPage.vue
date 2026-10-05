@@ -5,13 +5,16 @@ import { useAuthStore } from '../stores/auth';
 import { adminService } from '../services/admin';
 import type { AdminAccountItem, AdminActionAuditLog, CreateAdminPayload, UpdateAdminPayload } from '../types';
 import AdminNav from '../components/AdminNav.vue';
+import StatCardSkeleton from '../components/StatCardSkeleton.vue';
+import TableSkeleton from '../components/TableSkeleton.vue';
+import EmptyState from '../components/EmptyState.vue';
+import Skeleton from '../components/Skeleton.vue';
 import {
   ShieldAlert,
   ShieldCheck,
   UserCheck,
   UserX,
   UserPlus,
-  Users,
   Search,
   Eye,
   Edit2,
@@ -354,7 +357,10 @@ function formatDate(dateString?: string | null) {
     </div>
 
     <!-- STATS OVERVIEW CARDS (HIGH INFORMATION DENSITY) -->
-    <div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div v-if="isLoading" class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <StatCardSkeleton v-for="n in 4" :key="n" />
+    </div>
+    <div v-else class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
       <div class="rounded-3xl border border-border bg-elevated/60 p-4 sm:p-5 backdrop-blur-md">
         <div class="flex items-center justify-between text-text-secondary mb-2">
           <span class="text-xs font-semibold">Total Superadmin</span>
@@ -440,17 +446,22 @@ function formatDate(dateString?: string | null) {
     <!-- DATA TABLE -->
     <div class="rounded-3xl border border-border bg-elevated/50 backdrop-blur-md overflow-hidden shadow-2xl">
       <!-- Loading State -->
-      <div v-if="isLoading" class="py-20 flex flex-col items-center justify-center gap-3 text-text-secondary">
-        <Loader2 class="h-8 w-8 animate-spin text-primary" />
-        <span class="text-xs font-medium">Memuat data administrator...</span>
+      <div v-if="isLoading" class="p-6">
+        <TableSkeleton :columns="5" :rows="5" />
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="filteredAdmins.length === 0" class="py-20 text-center px-4">
-        <Users class="mx-auto h-12 w-12 text-text-secondary/40 mb-3" />
-        <h3 class="text-sm font-semibold text-text-primary">Tidak Ada Administrator Ditemukan</h3>
-        <p class="text-xs text-text-secondary mt-1">Coba sesuaikan kata kunci pencarian atau filter yang dipilih.</p>
-      </div>
+      <EmptyState
+        v-else-if="filteredAdmins.length === 0"
+        compact
+        icon="inbox"
+        icon-color="muted"
+        title="Tidak Ada Administrator Ditemukan"
+        description="Coba sesuaikan kata kunci pencarian atau filter yang dipilih."
+        action-text="Reset Filter & Pencarian"
+        action-variant="outline"
+        @action="searchQuery = ''; roleFilter = 'all'; statusFilter = 'all';"
+      />
 
       <!-- Table View -->
       <div v-else class="overflow-x-auto">
@@ -877,9 +888,14 @@ function formatDate(dateString?: string | null) {
             </h4>
           </div>
 
-          <div v-if="detailLoading" class="py-8 text-center text-text-secondary">
-            <Loader2 class="mx-auto h-5 w-5 animate-spin text-primary mb-2" />
-            <span class="text-xs">Mengambil riwayat audit...</span>
+          <div v-if="detailLoading" class="space-y-2 py-2">
+            <div v-for="i in 3" :key="i" class="rounded-2xl border border-border/50 bg-elevated/40 p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <Skeleton variant="badge" width="w-24" height="h-4" rounded="rounded" />
+                <Skeleton variant="text" width="w-20" height="h-3" rounded="rounded" />
+              </div>
+              <Skeleton variant="text" width="w-3/4" height="h-3" rounded="rounded" />
+            </div>
           </div>
 
           <div v-else-if="adminAuditLogs.length === 0" class="py-8 text-center rounded-2xl border border-border bg-elevated/20 text-xs text-text-secondary">

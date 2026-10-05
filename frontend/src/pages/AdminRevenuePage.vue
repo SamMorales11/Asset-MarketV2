@@ -7,6 +7,7 @@ import AdminNav from '../components/AdminNav.vue';
 import StatCardSkeleton from '../components/StatCardSkeleton.vue';
 import TableSkeleton from '../components/TableSkeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
+import Skeleton from '../components/Skeleton.vue';
 import {
   Coins,
   Search,
@@ -15,7 +16,6 @@ import {
   TrendingUp,
   Building2,
   Eye,
-  Loader2,
   X,
   ShieldCheck,
   Receipt,
@@ -331,9 +331,18 @@ async function openSellerDetail(userId: string) {
           </button>
         </div>
 
-        <div v-if="detailLoading" class="py-12 text-center">
-          <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-2" />
-          <p class="text-xs text-text-secondary">Mengambil riwayat transaksi kreator...</p>
+        <!-- Modal Detail Skeleton -->
+        <div v-if="detailLoading" class="space-y-6">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div v-for="i in 4" :key="i" class="rounded-2xl border border-border/50 bg-background p-3 space-y-1.5">
+              <Skeleton variant="text" width="w-16" height="h-3" rounded="rounded" />
+              <Skeleton variant="title" width="w-24" height="h-4" rounded="rounded" />
+            </div>
+          </div>
+          <div class="space-y-3">
+            <Skeleton variant="title" width="w-48" height="h-5" rounded="rounded" />
+            <TableSkeleton :columns="5" :rows="3" />
+          </div>
         </div>
 
         <div v-else-if="selectedSellerDetail" class="space-y-6 text-xs">

@@ -7,6 +7,7 @@ import AdminNav from '../components/AdminNav.vue';
 import StatCardSkeleton from '../components/StatCardSkeleton.vue';
 import TableSkeleton from '../components/TableSkeleton.vue';
 import Skeleton from '../components/Skeleton.vue';
+import EmptyState from '../components/EmptyState.vue';
 import {
   Users,
   Receipt,
@@ -243,8 +244,18 @@ async function loadDashboard() {
               </router-link>
             </div>
 
+            <!-- Empty State for Recent Transactions -->
+            <EmptyState
+              v-if="dashboardData.recentTransactions.length === 0"
+              compact
+              icon="receipt"
+              icon-color="muted"
+              title="Belum Ada Transaksi"
+              description="Catatan transaksi marketplace terbaru akan otomatis dicatat di sini."
+            />
+
             <!-- Table -->
-            <div class="overflow-x-auto">
+            <div v-else class="overflow-x-auto">
               <table class="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr class="border-b border-border text-[10px] font-bold uppercase tracking-wider text-text-secondary">
@@ -317,9 +328,14 @@ async function loadDashboard() {
             </div>
 
             <!-- List -->
-            <div v-if="dashboardData.recentAuditLogs.length === 0" class="py-6 text-center text-xs text-text-secondary">
-              Belum ada riwayat tindakan admin.
-            </div>
+            <EmptyState
+              v-if="dashboardData.recentAuditLogs.length === 0"
+              compact
+              icon="inbox"
+              icon-color="muted"
+              title="Belum Ada Riwayat Tindakan"
+              description="Seluruh audit trail tindakan administrator akan otomatis dicatat di sini secara permanen."
+            />
 
             <div v-else class="space-y-3">
               <div
@@ -369,7 +385,16 @@ async function loadDashboard() {
               </router-link>
             </div>
 
-            <div class="space-y-3">
+            <EmptyState
+              v-if="dashboardData.recentUsers.length === 0"
+              compact
+              icon="inbox"
+              icon-color="muted"
+              title="Belum Ada Pengguna Baru"
+              description="Daftar akun pengguna baru terdaftar akan muncul di sini."
+            />
+
+            <div v-else class="space-y-3">
               <div
                 v-for="user in dashboardData.recentUsers"
                 :key="user.id"

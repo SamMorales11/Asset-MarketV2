@@ -4,6 +4,9 @@ import { adminService } from '../services/admin';
 import { formatCurrency } from '../utils/formatters';
 import type { AdminUserListItem, AdminUserDetail } from '../types';
 import AdminNav from '../components/AdminNav.vue';
+import TableSkeleton from '../components/TableSkeleton.vue';
+import EmptyState from '../components/EmptyState.vue';
+import Skeleton from '../components/Skeleton.vue';
 import {
   Users,
   Search,
@@ -292,23 +295,23 @@ async function handleConfirmToggle() {
       </div>
     </div>
 
-    <!-- LOADING STATE -->
-    <div v-if="isLoading" class="py-20 text-center">
-      <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-3" />
-      <p class="text-xs text-text-secondary">Memuat data direktori pengguna...</p>
+    <!-- LOADING STATE: TABLE SKELETON -->
+    <div v-if="isLoading" class="space-y-4">
+      <TableSkeleton :columns="7" :rows="8" />
     </div>
 
     <!-- EMPTY STATE -->
-    <div
+    <EmptyState
       v-else-if="usersList.length === 0"
-      class="rounded-3xl border border-border bg-elevated/40 p-16 text-center space-y-3"
-    >
-      <Users class="mx-auto h-12 w-12 text-text-secondary opacity-60" />
-      <h3 class="font-heading text-xl font-bold text-text-primary">Tidak Ada Pengguna Ditemukan</h3>
-      <p class="text-xs text-text-secondary max-w-sm mx-auto">
-        Tidak ada data pengguna yang cocok dengan kriteria pencarian atau filter yang Anda pilih.
-      </p>
-    </div>
+      compact
+      icon="inbox"
+      icon-color="muted"
+      title="Tidak Ada Pengguna Ditemukan"
+      description="Tidak ada data pengguna yang cocok dengan kriteria pencarian atau filter yang Anda pilih."
+      action-text="Reset Filter & Pencarian"
+      action-variant="outline"
+      @action="searchQuery = ''; selectedRole = 'all'; selectedStatus = 'all'; handleSearch();"
+    />
 
     <!-- USER DIRECTORY TABLE (HIGH INFORMATION DENSITY) -->
     <div v-else class="space-y-4">
@@ -503,9 +506,26 @@ async function handleConfirmToggle() {
           </button>
         </div>
 
-        <div v-if="detailLoading" class="py-12 text-center">
-          <Loader2 class="mx-auto h-8 w-8 text-primary animate-spin mb-2" />
-          <p class="text-xs text-text-secondary">Mengambil profil detail pengguna...</p>
+        <!-- Modal Detail Skeleton -->
+        <div v-if="detailLoading" class="space-y-6">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div v-for="i in 4" :key="i" class="rounded-2xl border border-border/50 bg-background p-3 space-y-1.5">
+              <Skeleton variant="text" width="w-16" height="h-3" rounded="rounded" />
+              <Skeleton variant="title" width="w-24" height="h-4" rounded="rounded" />
+            </div>
+          </div>
+          <div class="rounded-2xl border border-border/50 bg-background p-4 space-y-3">
+            <Skeleton variant="text" width="w-36" height="h-4" rounded="rounded" />
+            <div class="grid grid-cols-2 gap-2">
+              <Skeleton v-for="i in 4" :key="i" variant="text" width="w-3/4" height="h-3" rounded="rounded" />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <Skeleton variant="title" width="w-40" height="h-4" rounded="rounded" />
+            <div class="space-y-2">
+              <Skeleton v-for="i in 2" :key="i" variant="card" height="h-14" rounded="rounded-xl" />
+            </div>
+          </div>
         </div>
 
         <div v-else-if="selectedUserDetail" class="space-y-6 text-xs">

@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<Props>(), {
   width: '',
   height: '',
   rounded: '',
-  animate: 'shimmer',
+  animate: 'pulse',
   customClass: '',
 });
 
@@ -23,10 +23,10 @@ const defaultClasses = computed(() => {
   const classes: string[] = [];
 
   // Animation style
-  if (props.animate === 'shimmer') {
+  if (props.animate === 'pulse') {
+    classes.push('skeleton-pulse');
+  } else if (props.animate === 'shimmer') {
     classes.push('skeleton-shimmer');
-  } else if (props.animate === 'pulse') {
-    classes.push('animate-pulse bg-elevated-subtle');
   } else {
     classes.push('bg-elevated-subtle');
   }

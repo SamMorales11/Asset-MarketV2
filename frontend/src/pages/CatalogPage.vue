@@ -19,8 +19,9 @@ import {
   Box,
   Palette,
   Music2,
-  X,
   AlertCircle,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -210,6 +211,18 @@ function resetAllFilters() {
   filters.page = 1;
   updateQueryParams();
 }
+
+/**
+ * Smart pagination: show at most 5 page numbers, centered around current page.
+ */
+function visiblePages(): number[] {
+  const total = pagination.value.totalPages;
+  const current = pagination.value.page;
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+  const start = Math.max(1, Math.min(current - 2, total - 4));
+  const end = Math.min(total, start + 4);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
 </script>
 
 <template>
@@ -217,19 +230,19 @@ function resetAllFilters() {
     <!-- ═══════════════════════════════════════════════
          EDITORIAL HERO HEADER
          ═══════════════════════════════════════════════ -->
-    <div class="border-b border-border/50">
-      <div class="mx-auto max-w-[1400px] px-6 lg:px-10 pt-10 pb-8">
+    <div class="border-b border-border/40">
+      <div class="mx-auto max-w-[1440px] px-6 lg:px-12 pt-12 pb-10">
         <!-- Eyebrow + Headline -->
-        <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
+        <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-10">
           <div class="max-w-2xl">
-            <div class="inline-flex items-center gap-2 text-[10px] font-bold text-secondary uppercase tracking-[0.2em] mb-3">
-              <span class="h-px w-6 bg-secondary"></span>
+            <div class="inline-flex items-center gap-2.5 text-[10px] font-bold text-secondary uppercase tracking-[0.25em] mb-4">
+              <span class="h-px w-8 bg-secondary/60"></span>
               <span>Curated Marketplace</span>
             </div>
-            <h1 class="font-heading text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-text-primary leading-[0.95]">
+            <h1 class="font-heading text-5xl sm:text-6xl lg:text-[4.5rem] font-bold tracking-tight text-text-primary leading-[0.92]">
               Explore Assets
             </h1>
-            <p class="mt-3 text-sm text-text-secondary max-w-lg leading-relaxed">
+            <p class="mt-4 text-[13px] text-text-secondary max-w-md leading-[1.7]">
               Discover premium digital assets vetted for quality — source code, UI kits, 3D models, and graphics ready for your next project.
             </p>
           </div>
@@ -241,7 +254,7 @@ function resetAllFilters() {
                 v-model="filters.q"
                 type="text"
                 placeholder="Search assets..."
-                class="w-full rounded-xl border border-border/60 bg-elevated/80 py-3 pl-11 pr-4 text-sm text-text-primary placeholder-text-muted focus:border-secondary/60 focus:outline-none focus:ring-1 focus:ring-secondary/30 transition-all duration-200"
+                class="w-full rounded-xl border border-border/50 bg-elevated/80 py-3 pl-11 pr-4 text-[13px] text-text-primary placeholder-text-muted focus:border-secondary/60 focus:outline-none focus:ring-1 focus:ring-secondary/20 transition-all duration-200"
                 @keyup.enter="handleSearch"
               />
               <Search class="absolute left-4 top-3.5 h-4 w-4 text-text-muted" />
@@ -249,7 +262,7 @@ function resetAllFilters() {
 
             <!-- Mobile Filter Toggle -->
             <button
-              class="lg:hidden flex items-center gap-2 rounded-xl border border-border/60 bg-elevated px-4 py-3 text-xs font-semibold text-text-primary hover:border-border-hover transition"
+              class="lg:hidden flex items-center gap-2 rounded-xl border border-border/50 bg-elevated px-4 py-3 text-[12px] font-semibold text-text-primary hover:border-border-hover transition"
               @click="mobileFilterOpen = !mobileFilterOpen"
             >
               <Filter class="h-4 w-4 text-secondary" />
@@ -258,14 +271,14 @@ function resetAllFilters() {
           </div>
         </div>
 
-        <!-- ═══ Horizontal Category Scroller ═══ -->
-        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
+        <!-- ═══ Horizontal Category Pills ═══ -->
+        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 -mb-px">
           <button
             class="shrink-0 rounded-full px-5 py-2 text-[11px] font-semibold tracking-wide transition-all duration-200"
             :class="
               filters.category === 'all'
                 ? 'bg-text-primary text-background shadow-lg'
-                : 'text-text-secondary hover:text-text-primary border border-border/50 hover:border-border-hover'
+                : 'text-text-secondary hover:text-text-primary border border-border/40 hover:border-border-hover'
             "
             @click="applyCategory('all')"
           >
@@ -275,18 +288,18 @@ function resetAllFilters() {
           <button
             v-for="cat in categories"
             :key="cat.id"
-            class="shrink-0 rounded-full px-5 py-2 text-[11px] font-semibold tracking-wide transition-all duration-200 flex items-center gap-2"
+            class="shrink-0 rounded-full px-5 py-2 text-[11px] font-semibold tracking-wide transition-all duration-200 inline-flex items-center gap-2"
             :class="
               filters.category === cat.slug
                 ? 'bg-text-primary text-background shadow-lg'
-                : 'text-text-secondary hover:text-text-primary border border-border/50 hover:border-border-hover'
+                : 'text-text-secondary hover:text-text-primary border border-border/40 hover:border-border-hover'
             "
             @click="applyCategory(cat.slug)"
           >
             <span>{{ cat.name }}</span>
             <span
               v-if="cat.assetCount !== undefined && cat.assetCount > 0"
-              class="text-[9px] opacity-60"
+              class="text-[9px] opacity-50 tabular-nums"
             >
               {{ cat.assetCount }}
             </span>
@@ -298,18 +311,18 @@ function resetAllFilters() {
     <!-- ═══════════════════════════════════════════════
          MAIN LAYOUT: SIDEBAR + GRID
          ═══════════════════════════════════════════════ -->
-    <div class="mx-auto max-w-[1400px] px-6 lg:px-10 py-8">
-      <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-10 items-start">
+    <div class="mx-auto max-w-[1440px] px-6 lg:px-12 py-10">
+      <div class="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-10 xl:gap-12 items-start">
 
         <!-- ═══ LEFT: FILTER SIDEBAR ═══ -->
         <aside
           :class="mobileFilterOpen ? 'block' : 'hidden lg:block'"
         >
-          <div class="lg:sticky lg:top-24 space-y-6">
-            <div class="rounded-2xl border border-border/40 bg-elevated-card p-6 space-y-6">
+          <div class="lg:sticky lg:top-24 space-y-5">
+            <div class="rounded-2xl border border-border/40 bg-elevated-card p-5 space-y-5">
               <!-- Filter Header -->
               <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2 text-sm font-bold text-text-primary">
+                <div class="flex items-center gap-2 text-[13px] font-bold text-text-primary">
                   <SlidersHorizontal class="h-4 w-4 text-secondary" />
                   <span>Refine</span>
                 </div>
@@ -325,10 +338,10 @@ function resetAllFilters() {
 
               <!-- Asset Type Filter -->
               <div>
-                <h4 class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-3">
+                <h4 class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-2.5">
                   Asset Type
                 </h4>
-                <div class="space-y-1">
+                <div class="space-y-0.5">
                   <button
                     v-for="t in assetTypes"
                     :key="t.id"
@@ -347,11 +360,11 @@ function resetAllFilters() {
               </div>
 
               <!-- Price Filter -->
-              <div class="border-t border-border/30 pt-5">
-                <h4 class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-3">
+              <div class="border-t border-border/30 pt-4">
+                <h4 class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-2.5">
                   Price Range
                 </h4>
-                <div class="space-y-1">
+                <div class="space-y-0.5">
                   <button
                     v-for="preset in pricePresets"
                     :key="preset.label"
@@ -401,12 +414,12 @@ function resetAllFilters() {
         <section>
           <!-- Results Top Bar -->
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div class="text-[12px] text-text-secondary">
+            <div class="text-[12px] text-text-muted">
               <span v-if="!isLoading && !isError">
                 Showing
-                <strong class="text-text-primary font-semibold font-mono">{{ assets.length }}</strong>
+                <strong class="text-text-primary font-semibold tabular-nums">{{ assets.length }}</strong>
                 of
-                <strong class="text-text-primary font-semibold font-mono">{{ pagination.total }}</strong>
+                <strong class="text-text-primary font-semibold tabular-nums">{{ pagination.total }}</strong>
                 assets
               </span>
             </div>
@@ -470,7 +483,7 @@ function resetAllFilters() {
           </div>
 
           <!-- ═══ LOADING: Skeleton Grid ═══ -->
-          <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-7">
             <AssetCardSkeleton v-for="n in 9" :key="n" />
           </div>
 
@@ -479,13 +492,13 @@ function resetAllFilters() {
             v-else-if="isError"
             class="rounded-2xl border border-primary/20 bg-primary/5 p-16 text-center"
           >
-            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mb-4">
+            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mb-5">
               <AlertCircle class="h-8 w-8 text-primary" />
             </div>
             <h3 class="font-heading text-2xl font-bold text-text-primary mb-2">
               Failed to Load Catalog
             </h3>
-            <p class="max-w-md mx-auto text-sm text-text-secondary leading-relaxed mb-6">
+            <p class="max-w-md mx-auto text-[13px] text-text-secondary leading-relaxed mb-6">
               {{ errorMessage }}
             </p>
             <button
@@ -510,12 +523,12 @@ function resetAllFilters() {
           />
 
           <!-- ═══ RESULTS GRID ═══ -->
-          <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-7">
             <div
               v-for="(item, index) in assets"
               :key="item.id"
               class="animate-fade-in-up"
-              :style="{ animationDelay: `${index * 60}ms` }"
+              :style="{ animationDelay: `${index * 50}ms` }"
             >
               <AssetCard :asset="item" />
             </div>
@@ -524,14 +537,24 @@ function resetAllFilters() {
           <!-- ═══ PAGINATION ═══ -->
           <div
             v-if="pagination.totalPages > 1 && !isLoading"
-            class="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/30 pt-8"
+            class="mt-14 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/30 pt-8"
           >
             <div class="text-[12px] text-text-muted">
-              Page <span class="font-bold text-text-primary font-mono">{{ pagination.page }}</span> of
-              <span class="font-bold text-text-primary font-mono">{{ pagination.totalPages }}</span>
+              Page <span class="font-bold text-text-primary tabular-nums">{{ pagination.page }}</span> of
+              <span class="font-bold text-text-primary tabular-nums">{{ pagination.totalPages }}</span>
             </div>
 
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1">
+              <!-- First page -->
+              <button
+                v-if="pagination.totalPages > 5 && pagination.page > 3"
+                class="flex h-9 w-9 items-center justify-center rounded-lg text-[12px] text-text-muted hover:text-text-primary hover:bg-elevated-subtle transition"
+                @click="goToPage(1)"
+              >
+                <ChevronsLeft class="h-4 w-4" />
+              </button>
+
+              <!-- Prev -->
               <button
                 :disabled="pagination.page <= 1"
                 class="flex h-9 items-center gap-1 rounded-lg border border-border/40 bg-elevated-card px-3 text-[12px] font-medium text-text-primary hover:border-border-hover disabled:opacity-30 disabled:pointer-events-none transition"
@@ -544,7 +567,7 @@ function resetAllFilters() {
               <!-- Page Numbers -->
               <div class="flex items-center gap-1">
                 <button
-                  v-for="p in pagination.totalPages"
+                  v-for="p in visiblePages()"
                   :key="p"
                   class="h-9 w-9 rounded-lg text-[12px] font-medium transition-all duration-200"
                   :class="
@@ -558,6 +581,7 @@ function resetAllFilters() {
                 </button>
               </div>
 
+              <!-- Next -->
               <button
                 :disabled="pagination.page >= pagination.totalPages"
                 class="flex h-9 items-center gap-1 rounded-lg border border-border/40 bg-elevated-card px-3 text-[12px] font-medium text-text-primary hover:border-border-hover disabled:opacity-30 disabled:pointer-events-none transition"
@@ -565,6 +589,15 @@ function resetAllFilters() {
               >
                 <span class="hidden sm:inline">Next</span>
                 <ChevronRight class="h-4 w-4" />
+              </button>
+
+              <!-- Last page -->
+              <button
+                v-if="pagination.totalPages > 5 && pagination.page < pagination.totalPages - 2"
+                class="flex h-9 w-9 items-center justify-center rounded-lg text-[12px] text-text-muted hover:text-text-primary hover:bg-elevated-subtle transition"
+                @click="goToPage(pagination.totalPages)"
+              >
+                <ChevronsRight class="h-4 w-4" />
               </button>
             </div>
           </div>
