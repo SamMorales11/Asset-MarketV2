@@ -24,12 +24,32 @@
 
 @layer utilities {
   /* Hide scrollbar for horizontal scroll areas */
-  .scrollbar-none {
+  .scrollbar-none,
+  .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .scrollbar-none::-webkit-scrollbar {
+  .scrollbar-none::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Luxury subtle backdrop glass */
+  .glass-panel {
+    background: rgba(22, 22, 22, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  /* Luxury border glow */
+  .border-glow-primary {
+    border-color: rgba(217, 58, 15, 0.4);
+    box-shadow: 0 0 16px -2px rgba(217, 58, 15, 0.2);
+  }
+
+  .border-glow-secondary {
+    border-color: rgba(0, 184, 184, 0.4);
+    box-shadow: 0 0 16px -2px rgba(0, 184, 184, 0.2);
   }
 }
 

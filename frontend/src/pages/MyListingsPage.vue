@@ -4,8 +4,11 @@ import { assetService } from '../services/assets';
 import StatusBadge from '../components/StatusBadge.vue';
 import EmptyState from '../components/EmptyState.vue';
 import Skeleton from '../components/Skeleton.vue';
+import UserNav from '../components/UserNav.vue';
 import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback, getLuxuryPlaceholder } from '../utils/imageUrl';
+import { useToast } from '../composables/useToast';
+import { useConfirm } from '../composables/useConfirm';
 import type { Asset, AssetStatus } from '../types';
 import {
   Plus,
@@ -20,7 +23,12 @@ import {
   Clock,
   AlertOctagon,
   Layers,
+  Loader2,
+  Send,
 } from 'lucide-vue-next';
+
+const { toast } = useToast();
+const { confirm } = useConfirm();
 
 const assets = ref<Asset[]>([]);
 const isLoading = ref(true);
@@ -28,6 +36,8 @@ const errorMessage = ref<string | null>(null);
 
 const activeFilter = ref<'all' | AssetStatus>('all');
 const searchQuery = ref('');
+const submittingAssetId = ref<string | null>(null);
+const actionError = ref<{ assetId: string; message: string } | null>(null);
 
 onMounted(async () => {
   await loadListings();
@@ -42,6 +52,60 @@ async function loadListings() {
     errorMessage.value = err?.response?.data?.message || err?.message || 'Gagal memuat katalog aset Anda.';
   } finally {
     isLoading.value = false;
+  }
+}
+
+/**
+ * Handle seller submitting or resubmitting an asset for admin moderation
+ */
+async function handleSubmitForModeration(item: Asset) {
+  if (submittingAssetId.value) return; // Prevent double submit
+
+  const confirmed = await confirm({
+    title: 'Ajukan Aset ke Moderasi Admin?',
+    message: `Aset "${item.title}" akan dikirimkan ke antrean kurator untuk ditinjau kelayakan berkas dan kelengkapan lisensinya. Estimasi proses review adalah 1x24 jam.`,
+    confirmText: 'Ya, Ajukan Sekarang',
+    cancelText: 'Batal',
+    variant: 'primary',
+  });
+  if (!confirmed) return;
+
+  submittingAssetId.value = item.id;
+  actionError.value = null;
+
+  try {
+    const updatedAsset = await assetService.submitForModeration(item.id);
+
+    // Update the asset in local state immediately for seamless reactivity
+    const index = assets.value.findIndex((a) => a.id === item.id);
+    if (index !== -1) {
+      assets.value[index] = {
+        ...assets.value[index],
+        status: 'pending',
+        rejectionReason: null,
+        updatedAt: updatedAsset?.updatedAt || new Date().toISOString(),
+      };
+    } else {
+      item.status = 'pending';
+      item.rejectionReason = null;
+    }
+
+    toast.success(
+      'Aset Berhasil Diajukan!',
+      `Aset "${item.title}" berhasil diajukan untuk moderasi administrator.`
+    );
+  } catch (err: any) {
+    const errorMsg =
+      err?.response?.data?.message ||
+      err?.message ||
+      'Gagal mengajukan moderasi aset. Silakan periksa koneksi Anda dan coba lagi.';
+    actionError.value = {
+      assetId: item.id,
+      message: errorMsg,
+    };
+    toast.error('Gagal Mengajukan Moderasi', errorMsg);
+  } finally {
+    submittingAssetId.value = null;
   }
 }
 
@@ -88,7 +152,17 @@ const filteredAssets = computed(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+  <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <nav class="mb-4 flex items-center gap-2 text-xs text-text-secondary">
+      <router-link to="/" class="hover:text-text-primary transition">Home</router-link>
+      <span>/</span>
+      <span class="text-text-primary font-medium">My Listings</span>
+    </nav>
+
+    <!-- User Navigation Sub-Header -->
+    <UserNav />
+
     <!-- Header with Action -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
       <div>
@@ -381,18 +455,40 @@ const filteredAssets = computed(() => {
             <!-- 2. REJECTED FEEDBACK WITH ACTIONABLE GUIDE -->
             <div
               v-if="item.status === 'rejected'"
-              class="rounded-2xl border border-primary/40 bg-primary/10 p-3 text-xs text-primary space-y-1.5"
+              class="rounded-2xl border border-primary/40 bg-primary/10 p-3.5 text-xs text-primary space-y-2.5"
             >
               <div class="flex items-center gap-1.5 font-bold">
                 <AlertTriangle class="h-3.5 w-3.5 shrink-0" />
                 <span>Feedback Penolakan Kurator:</span>
               </div>
-              <p class="text-[11px] leading-relaxed text-text-primary/90 italic bg-background/50 p-2 rounded-xl border border-primary/20">
+              <p class="text-[11px] leading-relaxed text-text-primary/90 italic bg-background/50 p-2.5 rounded-xl border border-primary/20">
                 "{{ item.rejectionReason || 'Berkas deliverable tidak memenuhi standar kelengkapan lisensi dan dokumentasi yang disyaratkan.' }}"
               </p>
-              <p class="text-[10px] text-text-secondary">
-                Silakan lakukan revisi berkas sesuai catatan di atas lalu hubungi tim kurator atau ajukan kembali.
+              <p class="text-[10px] text-text-secondary leading-normal">
+                Silakan lakukan revisi berkas sesuai catatan di atas lalu klik tombol di bawah untuk mengajukan kembali ke kurasi.
               </p>
+
+              <!-- Inline Error Feedback if submission failed -->
+              <div
+                v-if="actionError && actionError.assetId === item.id"
+                class="rounded-xl border border-primary/40 bg-primary/20 p-2.5 text-[11px] text-primary flex items-start gap-1.5"
+              >
+                <AlertTriangle class="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>{{ actionError.message }}</span>
+              </div>
+
+              <!-- Submit for Admin Moderation Button -->
+              <button
+                type="button"
+                id="submit-moderation-btn"
+                @click.stop="handleSubmitForModeration(item)"
+                :disabled="submittingAssetId === item.id"
+                class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/25 hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition transform active:scale-[0.98]"
+              >
+                <Loader2 v-if="submittingAssetId === item.id" class="h-3.5 w-3.5 animate-spin" />
+                <Send v-else class="h-3.5 w-3.5" />
+                <span>{{ submittingAssetId === item.id ? 'Mengajukan ke Moderasi...' : 'Submit for Admin Moderation' }}</span>
+              </button>
             </div>
 
             <!-- 3. APPROVED PUBLIC ACCESS -->
@@ -452,8 +548,6 @@ const filteredAssets = computed(() => {
                 <a
                   v-if="item.demoUrl"
                   :href="item.demoUrl"
-                  target="_blank"
-                  rel="noreferrer"
                   class="hover:text-primary transition"
                   title="Buka Demo URL"
                 >

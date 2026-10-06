@@ -4,7 +4,8 @@ import { db } from '../src/db/index.js';
 import { assetFiles, assets, categories } from '../src/db/schema.js';
 import { eq, and, isNull } from 'drizzle-orm';
 
-const API_BASE = 'http://localhost:3000/api';
+const PORT = process.env.PORT || 3001;
+const API_BASE = `http://localhost:${PORT}/api`;
 
 async function run() {
   console.log('🚀 === STARTING END-TO-END ASSET PURCHASE & DOWNLOAD VERIFICATION ===\n');

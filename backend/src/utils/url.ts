@@ -11,7 +11,7 @@ export function toAbsoluteUrl(urlPath: string | null | undefined): string | null
     return urlPath;
   }
 
-  const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, '');
+  const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3001}`).replace(/\/+$/, '');
   let cleanPath = urlPath.startsWith('/') ? urlPath : `/${urlPath}`;
 
   // Ensure path starts with /uploads for static file resolution

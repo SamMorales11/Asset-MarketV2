@@ -15,6 +15,7 @@ import {
   TrendingUp,
   X,
   Plus,
+  Loader2,
 } from 'lucide-vue-next';
 
 const { toast } = useToast();
@@ -119,18 +120,22 @@ function removeTag(index: number) {
 async function handleSubmit() {
   if (!form.title.trim()) {
     errorMessage.value = 'Asset title is required.';
+    toast.error('Validasi Gagal', errorMessage.value);
     return;
   }
   if (!form.description.trim()) {
     errorMessage.value = 'Asset description is required.';
+    toast.error('Validasi Gagal', errorMessage.value);
     return;
   }
   if (!thumbnailFile.value) {
     errorMessage.value = 'Please select a cover thumbnail image.';
+    toast.error('Validasi Gagal', errorMessage.value);
     return;
   }
   if (!assetFile.value) {
     errorMessage.value = 'Please select the main digital asset archive (.zip).';
+    toast.error('Validasi Gagal', errorMessage.value);
     return;
   }
 
@@ -524,11 +529,13 @@ function resetForm() {
         <!-- Submit Button -->
         <button
           type="submit"
+          id="submit-asset-moderation-btn"
           :disabled="isSubmitting"
           class="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white shadow-xl shadow-primary/25 hover:bg-primary-hover disabled:opacity-50 transition transform active:scale-[0.99]"
         >
-          <UploadCloud class="h-5 w-5" />
-          <span>{{ isSubmitting ? `Submitting (${uploadProgress}%)...` : 'Submit Asset for Admin Moderation' }}</span>
+          <Loader2 v-if="isSubmitting" class="h-5 w-5 animate-spin" />
+          <UploadCloud v-else class="h-5 w-5" />
+          <span>{{ isSubmitting ? `Submitting (${uploadProgress}%)...` : 'Submit for Admin Moderation' }}</span>
         </button>
       </form>
     </div>

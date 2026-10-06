@@ -10,3 +10,4 @@ frontend/.env
 frontend/.env.local
 backend/uploads/*
 !backend/uploads/.gitkeep
+ 

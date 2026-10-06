@@ -7,6 +7,7 @@ import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback } from '../utils/imageUrl';
 import EmptyState from '../components/EmptyState.vue';
 import Skeleton from '../components/Skeleton.vue';
+import { useConfirm } from '../composables/useConfirm';
 import {
   Trash2,
   ArrowRight,
@@ -20,6 +21,7 @@ import {
 const router = useRouter();
 const cartStore = useCartStore();
 const authStore = useAuthStore();
+const { confirm } = useConfirm();
 
 onMounted(async () => {
   if (authStore.isAuthenticated) {
@@ -39,9 +41,16 @@ function handleRemoveItem(itemId: string) {
   cartStore.removeItem(itemId);
 }
 
-function handleClearCart() {
-  if (confirm('Are you sure you want to empty your shopping cart?')) {
-    cartStore.clearCart();
+async function handleClearCart() {
+  const confirmed = await confirm({
+    title: 'Kosongkan Keranjang Belanja?',
+    message: 'Apakah Anda yakin ingin menghapus seluruh aset digital dari keranjang belanja Anda?',
+    confirmText: 'Ya, Kosongkan Keranjang',
+    cancelText: 'Batal',
+    variant: 'danger',
+  });
+  if (confirmed) {
+    await cartStore.clearCart();
   }
 }
 </script>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppLayout from './layouts/AppLayout.vue';
 import ToastContainer from './components/ToastContainer.vue';
+import ConfirmationModal from './components/ConfirmationModal.vue';
 </script>
 
 <template>
@@ -8,4 +9,5 @@ import ToastContainer from './components/ToastContainer.vue';
     <router-view />
   </AppLayout>
   <ToastContainer />
+  <ConfirmationModal />
 </template>

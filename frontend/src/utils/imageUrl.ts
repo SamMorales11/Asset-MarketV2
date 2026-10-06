@@ -12,7 +12,7 @@ export function getAssetImageUrl(url: string | null | undefined): string {
   if (!cleanPath.startsWith('/uploads')) {
     cleanPath = `/uploads${cleanPath}`;
   }
-  const apiBase = (import.meta.env?.VITE_API_BASE_URL as string) || 'http://localhost:3000/api';
+  const apiBase = (import.meta.env?.VITE_API_BASE_URL as string) || 'http://localhost:3001/api';
   const backendBase = apiBase.replace(/\/api\/?$/, '');
   return `${backendBase}${cleanPath}`;
 }

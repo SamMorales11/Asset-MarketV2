@@ -131,7 +131,7 @@ export const transactionService = {
   },
 
   getDownloadUrl(fileId: string): string {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
     const token = localStorage.getItem('access_token');
     return token
       ? `${baseUrl}/purchases/download/${fileId}?token=${encodeURIComponent(token)}`
@@ -139,7 +139,7 @@ export const transactionService = {
   },
 
   getAssetDownloadUrl(assetId: string): string {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
     const token = localStorage.getItem('access_token');
     return token
       ? `${baseUrl}/purchases/assets/${assetId}/download?token=${encodeURIComponent(token)}`

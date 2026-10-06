@@ -4,7 +4,7 @@ import * as fsSync from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
 import * as crypto from 'crypto';
-import { eq, inArray, isNull, desc } from 'drizzle-orm';
+import { eq, inArray, notInArray, count, and, isNull } from 'drizzle-orm';
 import { db } from './index.js';
 import {
   users,
@@ -15,7 +15,7 @@ import {
   transactionItems,
   paymentConfirmations,
   revenueLedger,
-  adminActions,
+  cartItems,
 } from './schema.js';
 import { getUploadsRootDir, ensureUploadDirs } from '../utils/paths.js';
 
@@ -23,7 +23,6 @@ import { getUploadsRootDir, ensureUploadDirs } from '../utils/paths.js';
 // 1. PROCEDURAL ASSET GENERATORS (PNG & ZIP)
 // =========================================================================
 
-// Pre-computed CRC-32 table for pure Node.js PNG & ZIP generation
 const crcTable: number[] = [];
 for (let n = 0; n < 256; n++) {
   let c = n;
@@ -36,7 +35,9 @@ for (let n = 0; n < 256; n++) {
 function crc32(buf: Buffer): number {
   let crc = 0xffffffff;
   for (let i = 0; i < buf.length; i++) {
-    crc = crcTable[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+    const b = buf[i] ?? 0;
+    const tableVal = crcTable[(crc ^ b) & 0xff] ?? 0;
+    crc = tableVal ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -52,18 +53,14 @@ function makeChunk(type: string, data: Buffer): Buffer {
   return chunk;
 }
 
-/**
- * Procedural luxury editorial PNG generator with vibrant dark-mode palettes.
- * Guarantees 100% valid image files even in completely offline environments.
- */
 function createLuxuryEditorialPng(width = 800, height = 500, variant = 0): Buffer {
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
   const ihdrData = Buffer.alloc(13);
   ihdrData.writeUInt32BE(width, 0);
   ihdrData.writeUInt32BE(height, 4);
-  ihdrData.writeUInt8(8, 8); // 8-bit depth
-  ihdrData.writeUInt8(2, 9); // RGB color type
+  ihdrData.writeUInt8(8, 8);
+  ihdrData.writeUInt8(2, 9);
   ihdrData.writeUInt8(0, 10);
   ihdrData.writeUInt8(0, 11);
   ihdrData.writeUInt8(0, 12);
@@ -74,7 +71,7 @@ function createLuxuryEditorialPng(width = 800, height = 500, variant = 0): Buffe
 
   for (let y = 0; y < height; y++) {
     const rowOffset = y * rawRowSize;
-    rawBuffer[rowOffset] = 0; // Filter byte: None
+    rawBuffer[rowOffset] = 0;
     const yRatio = y / height;
 
     for (let x = 0; x < width; x++) {
@@ -82,34 +79,29 @@ function createLuxuryEditorialPng(width = 800, height = 500, variant = 0): Buffe
       const pxOffset = rowOffset + 1 + x * 3;
       const distFromCenter = Math.hypot(xRatio - 0.5, yRatio - 0.5);
 
-      let r = 16, g = 16, b = 22;
+      let r = 18, g = 18, b = 24;
       const mod = variant % 5;
 
       if (mod === 0) {
-        // Obsidian & Ember Orange (#D93A0F) glow
-        r = Math.floor(16 + Math.max(0, 1 - distFromCenter * 1.5) * 200);
-        g = Math.floor(16 + Math.max(0, 1 - distFromCenter * 1.8) * 58);
-        b = Math.floor(22 + Math.max(0, 1 - distFromCenter * 1.6) * 15 + yRatio * 20);
+        r = Math.floor(18 + Math.max(0, 1 - distFromCenter * 1.5) * 190);
+        g = Math.floor(18 + Math.max(0, 1 - distFromCenter * 1.8) * 55);
+        b = Math.floor(24 + Math.max(0, 1 - distFromCenter * 1.6) * 20 + yRatio * 15);
       } else if (mod === 1) {
-        // Deep Obsidian & Cosmic Teal (#00B8B8) glow
         r = Math.floor(14 + Math.max(0, 1 - distFromCenter * 1.8) * 20);
-        g = Math.floor(18 + Math.max(0, 1 - distFromCenter * 1.5) * 165);
-        b = Math.floor(24 + Math.max(0, 1 - distFromCenter * 1.4) * 180);
+        g = Math.floor(20 + Math.max(0, 1 - distFromCenter * 1.5) * 165);
+        b = Math.floor(26 + Math.max(0, 1 - distFromCenter * 1.4) * 180);
       } else if (mod === 2) {
-        // Royal Amethyst & Violet glow
-        r = Math.floor(20 + Math.max(0, 1 - distFromCenter * 1.6) * 140);
+        r = Math.floor(22 + Math.max(0, 1 - distFromCenter * 1.6) * 140);
         g = Math.floor(14 + Math.max(0, 1 - distFromCenter * 1.9) * 40);
-        b = Math.floor(28 + Math.max(0, 1 - distFromCenter * 1.4) * 190);
+        b = Math.floor(30 + Math.max(0, 1 - distFromCenter * 1.4) * 190);
       } else if (mod === 3) {
-        // Midnight Emerald & Gold glow
-        r = Math.floor(18 + Math.max(0, 1 - distFromCenter * 1.6) * 180);
-        g = Math.floor(20 + Math.max(0, 1 - distFromCenter * 1.5) * 160);
-        b = Math.floor(22 + Math.max(0, 1 - distFromCenter * 1.8) * 40);
+        r = Math.floor(22 + Math.max(0, 1 - distFromCenter * 1.6) * 180);
+        g = Math.floor(20 + Math.max(0, 1 - distFromCenter * 1.5) * 150);
+        b = Math.floor(24 + Math.max(0, 1 - distFromCenter * 1.8) * 35);
       } else {
-        // High Fashion Platinum & Slate glow
-        r = Math.floor(22 + Math.max(0, 1 - distFromCenter * 1.6) * 110);
-        g = Math.floor(24 + Math.max(0, 1 - distFromCenter * 1.6) * 120);
-        b = Math.floor(30 + Math.max(0, 1 - distFromCenter * 1.5) * 140);
+        r = Math.floor(24 + Math.max(0, 1 - distFromCenter * 1.6) * 120);
+        g = Math.floor(26 + Math.max(0, 1 - distFromCenter * 1.6) * 130);
+        b = Math.floor(32 + Math.max(0, 1 - distFromCenter * 1.5) * 150);
       }
 
       rawBuffer[pxOffset] = Math.min(255, Math.max(0, r));
@@ -125,22 +117,19 @@ function createLuxuryEditorialPng(width = 800, height = 500, variant = 0): Buffe
   return Buffer.concat([signature, ihdrChunk, idatChunk, iendChunk]);
 }
 
-/**
- * Construct a valid ZIP file containing a README.md and LICENSE.txt
- */
 function createSampleZip(assetTitle: string): Buffer {
   const readmeContent = `# ${assetTitle}
-Thank you for purchasing ${assetTitle} on Asset Market.
+Thank you for acquiring ${assetTitle} from Asset Market.
 
-## Package Contents
-- Source Files & Deliverables
-- Documentation & Integration Guide
-- Production-ready Assets
-- Standard Commercial License
+## Package Manifest
+- Main Production Deliverables & Source Code
+- High-Resolution Textures / Assets / Components
+- Architecture & Integration Documentation
+- Standard Commercial License Agreement
 
-## Verification & Support
-- Platform: Asset Market
-- Support: https://assetmarket.com/support
+## Support & Verification
+- Platform: Asset Market Indonesia
+- Support Portal: https://assetmarket.com/support
 `;
   const fileBytes = Buffer.from(readmeContent, 'utf-8');
   const crc = crc32(fileBytes);
@@ -149,12 +138,11 @@ Thank you for purchasing ${assetTitle} on Asset Market.
   const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
   const nameBytes = Buffer.from('README.md', 'utf-8');
 
-  // Local file header
   const localHeader = Buffer.alloc(30 + nameBytes.length);
-  localHeader.writeUInt32LE(0x04034b50, 0); // Local header signature
-  localHeader.writeUInt16LE(20, 4); // Min version (2.0)
-  localHeader.writeUInt16LE(0, 6); // Flags
-  localHeader.writeUInt16LE(0, 8); // Compression: Stored
+  localHeader.writeUInt32LE(0x04034b50, 0);
+  localHeader.writeUInt16LE(20, 4);
+  localHeader.writeUInt16LE(0, 6);
+  localHeader.writeUInt16LE(0, 8);
   localHeader.writeUInt16LE(time, 10);
   localHeader.writeUInt16LE(date, 12);
   localHeader.writeUInt32LE(crc, 14);
@@ -166,9 +154,8 @@ Thank you for purchasing ${assetTitle} on Asset Market.
 
   const localOffset = 0;
 
-  // Central directory header
   const cdHeader = Buffer.alloc(46 + nameBytes.length);
-  cdHeader.writeUInt32LE(0x02014b50, 0); // Central directory signature
+  cdHeader.writeUInt32LE(0x02014b50, 0);
   cdHeader.writeUInt16LE(20, 4);
   cdHeader.writeUInt16LE(20, 6);
   cdHeader.writeUInt16LE(0, 8);
@@ -190,7 +177,6 @@ Thank you for purchasing ${assetTitle} on Asset Market.
   const cdOffset = localHeader.length + fileBytes.length;
   const cdSize = cdHeader.length;
 
-  // End of Central Directory (EOCD)
   const eocd = Buffer.alloc(22);
   eocd.writeUInt32LE(0x06054b50, 0);
   eocd.writeUInt16LE(0, 4);
@@ -204,25 +190,18 @@ Thank you for purchasing ${assetTitle} on Asset Market.
   return Buffer.concat([localHeader, fileBytes, cdHeader, eocd]);
 }
 
-/**
- * Downloads image from curated external URL, or creates a procedural luxury PNG fallback
- */
-async function ensureImageFile(
+async function ensureLocalFile(
   targetPath: string,
   externalUrl: string,
   width = 800,
   height = 500,
   variant = 0
 ): Promise<void> {
-  // If file already exists and is non-empty (> 1000 bytes), skip re-download
   if (fsSync.existsSync(targetPath)) {
     const stats = fsSync.statSync(targetPath);
-    if (stats.size > 1000) {
-      return;
-    }
+    if (stats.size > 1000) return;
   }
 
-  // Ensure parent directory exists
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
 
   let buffer: Buffer | null = null;
@@ -235,7 +214,7 @@ async function ensureImageFile(
       }
     }
   } catch {
-    // Timeout or network error - fallback silently to procedural generator
+    // Network fallback
   }
 
   if (!buffer) {
@@ -372,8 +351,10 @@ interface SeedAssetDef {
   ratingCount: number;
   downloadCount: number;
   viewCount: number;
-  status: 'approved' | 'pending';
-  unsplashUrl: string;
+  status: 'approved' | 'pending' | 'rejected';
+  rejectionReason?: string | null;
+  imageUrl: string;
+  previewImages: string[];
 }
 
 const SEED_ASSETS: SeedAssetDef[] = [
@@ -400,7 +381,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 142,
     viewCount: 890,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Chronos High-Frequency Trading Core',
@@ -425,7 +410,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 85,
     viewCount: 612,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Vogue & Velvet 3D Spatial Interior Pack',
@@ -449,7 +438,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 110,
     viewCount: 745,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Aura Modern Serif & Display Typography Kit',
@@ -474,7 +467,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 94,
     viewCount: 430,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Lumina SaaS Dashboard & Admin Component Kit',
@@ -499,7 +496,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 230,
     viewCount: 1250,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Cyberpunk Humanoid Rigged 3D Character Model',
@@ -523,7 +524,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 78,
     viewCount: 580,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Hyperion Headless Microservices E-Commerce Engine',
@@ -548,7 +553,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 165,
     viewCount: 980,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1522542550221-31fd19575a2d?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Obsidian Minimalist Vector Iconography (1,200+ Icons)',
@@ -572,7 +581,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 340,
     viewCount: 1820,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Cinematic Ambient Soundscapes & UI Audio Suite',
@@ -596,7 +609,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 63,
     viewCount: 390,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1522542550221-31fd19575a2d?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Zenith Mobile Banking & Digital Wallet UI Kit',
@@ -621,7 +638,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 155,
     viewCount: 860,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Prism Iridescent Abstract 3D Glass Artwork Pack',
@@ -645,7 +666,11 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 89,
     viewCount: 510,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Quantum Multi-Tenant Creative Agency Next.js Platform',
@@ -669,7 +694,67 @@ const SEED_ASSETS: SeedAssetDef[] = [
     downloadCount: 180,
     viewCount: 1100,
     status: 'approved',
-    unsplashUrl: 'https://images.unsplash.com/photo-1522542550221-31fd19575a2d?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1522542550221-31fd19575a2d?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1522542550221-31fd19575a2d?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80',
+    ],
+  },
+  {
+    title: 'Minimalist Wireframe & Flowchart Starter Kit',
+    slug: 'minimalist-wireframe-starter-kit',
+    categorySlug: 'ui-templates',
+    assetType: 'ui_template',
+    price: '0.00',
+    discountPrice: null,
+    sellerEmail: 'seller@assetmarket.com',
+    shortDescription: 'Komponen wireframe cepat dan diagram alur pengguna untuk Figma gratis untuk komunitas desainer.',
+    description: `Starter kit wireframe minimalis gratis untuk memvalidasi ide produk dan alur UX dengan cepat.
+
+### Fitur Freebie:
+- **80+ Low-Fidelity Layouts**: Header, hero sections, feature grids, pricing tables, dan footers.
+- **User Flow Notation**: Simbol panah alur, titik keputusan, dan catatan integrasi pengembang.
+- **Kompatibel 100% Figma Auto-Layout 5.0**: Ganti teks dan konten tanpa merusak tata letak.`,
+    tags: ['Freebie', 'Wireframe', 'Figma', 'UX Design', 'Flowchart'],
+    demoUrl: 'https://wireframe-kit.design',
+    ratingAvg: '4.94',
+    ratingCount: 62,
+    downloadCount: 410,
+    viewCount: 1420,
+    status: 'approved',
+    imageUrl: 'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1200&q=80',
+    ],
+  },
+  {
+    title: 'Essential Developer Utility Scripts & CLI Tools',
+    slug: 'essential-developer-cli-tools',
+    categorySlug: 'source-code',
+    assetType: 'source_code',
+    price: '0.00',
+    discountPrice: null,
+    sellerEmail: 'user@assetmarket.com',
+    shortDescription: 'Kumpulan script otomasi DevOps, parser konfigurasi, dan utilitas baris perintah gratis.',
+    description: `Koleksi 15 skrip CLI TypeScript siap pakai untuk kompresi aset otomatis, validasi skema JSON, generator slug terenkripsi, dan linter lingkungan pengembang.
+
+### Alat yang Disertakan:
+- **Image Optimizer CLI**: Konversi batch WebP/AVIF dengan kompresi lossless otomatis.
+- **Git Commit Linter**: Validasi format semantic commit otomatis sebelum push.
+- **Database Migrator Hook**: Helper migration audit trail untuk Drizzle dan Prisma.`,
+    tags: ['Freebie', 'CLI', 'TypeScript', 'DevTools', 'OpenSource'],
+    demoUrl: 'https://devtools-cli.dev',
+    ratingAvg: '4.87',
+    ratingCount: 39,
+    downloadCount: 295,
+    viewCount: 880,
+    status: 'approved',
+    imageUrl: 'https://images.unsplash.com/photo-1629654297299-c8506221ca97?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1629654297299-c8506221ca97?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     title: 'Velvet Mirage 3D Architectural Scene',
@@ -681,14 +766,19 @@ const SEED_ASSETS: SeedAssetDef[] = [
     sellerEmail: 'seller@assetmarket.com',
     shortDescription: 'Visualisasi arsitektur villa minimalis kontemporer dengan pencahayaan senja dramatis.',
     description: `Adegan visualisasi arsitektur lengkap dengan lanskap kolam renang infinity dan interior modern minimalis. Format Blender Cycles dan GLTF.`,
-    tags: ['Architecture', 'Blender', 'Photoreal', 'Pending Review'],
+    tags: ['Architecture', 'Blender', 'Photoreal', 'Needs Revision'],
     demoUrl: 'https://velvet-mirage.render',
     ratingAvg: '0.00',
     ratingCount: 0,
     downloadCount: 0,
-    viewCount: 12,
-    status: 'pending', // Pending review for Admin Approval queue demo
-    unsplashUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+    viewCount: 15,
+    status: 'rejected',
+    rejectionReason: 'Berkas deliverable belum menyertakan file lisensi komersial dan format dokumentasi lisensi perlu diperbaiki.',
+    imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+    previewImages: [
+      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
 ];
 
@@ -698,10 +788,9 @@ const SEED_ASSETS: SeedAssetDef[] = [
 
 async function runSeed() {
   console.log('\n=============================================');
-  console.log('🌱 Starting Comprehensive Seeding on Neon PostgreSQL');
+  console.log('🌱 Starting Pure High-Craft Demo Seeding');
   console.log('=============================================\n');
 
-  // Ensure directories exist
   ensureUploadDirs();
   const rootUploads = getUploadsRootDir();
   const thumbDir = path.join(rootUploads, 'thumbnails');
@@ -712,19 +801,49 @@ async function runSeed() {
   await fs.mkdir(filesDir, { recursive: true });
   await fs.mkdir(paymentsDir, { recursive: true });
 
-  const accountResults: Array<{
-    name: string;
-    email: string;
-    role: string;
-    status: string;
-  }> = [];
+  const VALID_SLUGS = SEED_ASSETS.map((a) => a.slug);
 
   try {
     // ---------------------------------------------------------------------
-    // STEP 1: Seed / Upsert Core Testing Accounts
+    // STEP 0: Purge Any Stale / Corrupted / Non-Demo Assets
     // ---------------------------------------------------------------------
-    console.log('👤 [1/5] Synchronizing Seed Accounts...');
-    const userMap: Record<string, string> = {}; // email -> id
+    console.log('🧹 [0/5] Purging Stale & Non-Demo Assets...');
+    const junkAssets = await db
+      .select({ id: assets.id, slug: assets.slug })
+      .from(assets)
+      .where(notInArray(assets.slug, VALID_SLUGS));
+
+    if (junkAssets.length > 0) {
+      const junkIds = junkAssets.map((j) => j.id);
+      const txItems = await db
+        .select({ id: transactionItems.id, transactionId: transactionItems.transactionId })
+        .from(transactionItems)
+        .where(inArray(transactionItems.assetId, junkIds));
+
+      if (txItems.length > 0) {
+        const txIds = [...new Set(txItems.map((t) => t.transactionId))];
+        const txItemIds = txItems.map((t) => t.id);
+
+        await db.delete(paymentConfirmations).where(inArray(paymentConfirmations.transactionId, txIds));
+        await db.delete(revenueLedger).where(inArray(revenueLedger.transactionId, txIds));
+        await db.delete(revenueLedger).where(inArray(revenueLedger.transactionItemId, txItemIds));
+        await db.delete(transactionItems).where(inArray(transactionItems.id, txItemIds));
+        await db.delete(transactions).where(inArray(transactions.id, txIds));
+      }
+
+      await db.delete(cartItems).where(inArray(cartItems.assetId, junkIds));
+      await db.delete(assetFiles).where(inArray(assetFiles.assetId, junkIds));
+      await db.delete(assets).where(inArray(assets.id, junkIds));
+      console.log(`✓ Purged ${junkAssets.length} non-demo assets.`);
+    } else {
+      console.log('✓ No junk assets detected in database.');
+    }
+
+    // ---------------------------------------------------------------------
+    // STEP 1: Synchronize Core Testing Accounts
+    // ---------------------------------------------------------------------
+    console.log('\n👤 [1/5] Synchronizing Seed Accounts...');
+    const userMap: Record<string, string> = {};
 
     for (const account of SEED_ACCOUNTS) {
       const existing = await db
@@ -736,8 +855,7 @@ async function runSeed() {
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(account.passwordRaw, salt);
 
-      if (existing.length > 0) {
-        // Upsert to ensure credentials & verification status remain accurate
+      if (existing.length > 0 && existing[0]) {
         const [updated] = await db
           .update(users)
           .set({
@@ -756,13 +874,7 @@ async function runSeed() {
           .where(eq(users.email, account.email))
           .returning();
 
-        userMap[account.email] = updated.id;
-        accountResults.push({
-          name: account.name,
-          email: account.email,
-          role: account.role,
-          status: 'UPDATED',
-        });
+        userMap[account.email] = updated ? updated.id : existing[0].id;
       } else {
         const [created] = await db
           .insert(users)
@@ -781,23 +893,18 @@ async function runSeed() {
           })
           .returning();
 
-        userMap[account.email] = created.id;
-        accountResults.push({
-          name: account.name,
-          email: account.email,
-          role: account.role,
-          status: 'CREATED',
-        });
+        if (created) {
+          userMap[account.email] = created.id;
+        }
       }
     }
-
-    console.table(accountResults);
+    console.log(`✓ Synchronized ${SEED_ACCOUNTS.length} test accounts.`);
 
     // ---------------------------------------------------------------------
-    // STEP 2: Seed / Upsert Default Categories
+    // STEP 2: Synchronize Marketplace Categories
     // ---------------------------------------------------------------------
     console.log('\n📁 [2/5] Synchronizing Marketplace Categories...');
-    const categoryMap: Record<string, string> = {}; // slug -> id
+    const categoryMap: Record<string, string> = {};
 
     for (const cat of DEFAULT_CATEGORIES) {
       const [existingCat] = await db
@@ -832,48 +939,54 @@ async function runSeed() {
             isActive: true,
           })
           .returning();
-        categoryMap[cat.slug] = createdCat.id;
+        if (createdCat) {
+          categoryMap[cat.slug] = createdCat.id;
+        }
       }
     }
     console.log(`✓ Synchronized ${DEFAULT_CATEGORIES.length} default categories.`);
 
     // ---------------------------------------------------------------------
-    // STEP 3: Seed Realistic Assets, Images, and Deliverable Files
+    // STEP 3: Seed Pristine Demo Assets
     // ---------------------------------------------------------------------
-    console.log('\n💎 [3/5] Generating High-Craft Assets & Real Physical Uploads...');
-    const assetMap: Record<string, string> = {}; // slug -> id
+    console.log('\n💎 [3/5] Seeding Pure Curated Demo Assets & Physical Files...');
+    const assetMap: Record<string, string> = {};
     let assetIdx = 0;
 
     for (const def of SEED_ASSETS) {
       assetIdx++;
-      const sellerId = userMap[def.sellerEmail] || userMap['seller@assetmarket.com'];
-      const categoryId = categoryMap[def.categorySlug];
+      const rawSellerId = userMap[def.sellerEmail] ?? userMap['seller@assetmarket.com'];
+      const rawCategoryId = categoryMap[def.categorySlug];
 
-      if (!sellerId || !categoryId) {
-        console.warn(`Skipping asset ${def.title}: missing seller or category.`);
-        continue;
+      if (!rawSellerId || !rawCategoryId) continue;
+
+      const sellerId: string = rawSellerId;
+      const categoryId: string = rawCategoryId;
+
+      // Ensure local thumbnail on disk
+      const thumbDiskFileName = `${def.slug}-thumb.png`;
+      const thumbDiskPath = path.join(thumbDir, thumbDiskFileName);
+      await ensureLocalFile(thumbDiskPath, def.imageUrl, 800, 500, assetIdx);
+
+      // Ensure local preview images on disk
+      let pIdx = 0;
+      for (const pUrl of def.previewImages) {
+        pIdx++;
+        const previewDiskFileName = `${def.slug}-preview-${pIdx}.png`;
+        const previewDiskPath = path.join(thumbDir, previewDiskFileName);
+        await ensureLocalFile(previewDiskPath, pUrl, 1200, 800, assetIdx + pIdx);
       }
 
-      // 1. Prepare Thumbnail and Preview Images on Disk
-      const thumbFileName = `${def.slug}-thumb.png`;
-      const thumbDiskPath = path.join(thumbDir, thumbFileName);
-      await ensureImageFile(thumbDiskPath, def.unsplashUrl, 800, 500, assetIdx);
+      // Save deliverable zip on disk
+      const deliverableFileName = `${def.slug}-package.zip`;
+      const deliverableDiskPath = path.join(filesDir, deliverableFileName);
+      const zipBuffer = createSampleZip(def.title);
+      await fs.writeFile(deliverableDiskPath, zipBuffer);
+      const fileSha256 = crypto.createHash('sha256').update(zipBuffer).digest('hex');
 
-      const preview1FileName = `${def.slug}-preview-1.png`;
-      const preview1DiskPath = path.join(thumbDir, preview1FileName);
-      await ensureImageFile(preview1DiskPath, def.unsplashUrl, 800, 500, assetIdx + 1);
+      const thumbnailUrl = def.imageUrl;
+      const previewImages = def.previewImages;
 
-      const preview2FileName = `${def.slug}-preview-2.png`;
-      const preview2DiskPath = path.join(thumbDir, preview2FileName);
-      await ensureImageFile(preview2DiskPath, def.unsplashUrl, 800, 500, assetIdx + 2);
-
-      const thumbnailUrl = `/uploads/thumbnails/${thumbFileName}`;
-      const previewImages = [
-        `/uploads/thumbnails/${preview1FileName}`,
-        `/uploads/thumbnails/${preview2FileName}`,
-      ];
-
-      // 2. Upsert Asset in DB
       const [existingAsset] = await db
         .select()
         .from(assets)
@@ -893,6 +1006,7 @@ async function runSeed() {
             description: def.description,
             assetType: def.assetType,
             status: def.status,
+            rejectionReason: def.rejectionReason || null,
             price: def.price,
             discountPrice: def.discountPrice || null,
             thumbnailUrl,
@@ -903,11 +1017,12 @@ async function runSeed() {
             ratingCount: def.ratingCount,
             downloadCount: def.downloadCount,
             viewCount: def.viewCount,
+            deletedAt: null,
             updatedAt: new Date(),
           })
           .where(eq(assets.id, existingAsset.id))
           .returning();
-        assetId = updatedAsset.id;
+        assetId = updatedAsset ? updatedAsset.id : existingAsset.id;
       } else {
         const [createdAsset] = await db
           .insert(assets)
@@ -920,6 +1035,7 @@ async function runSeed() {
             description: def.description,
             assetType: def.assetType,
             status: def.status,
+            rejectionReason: def.rejectionReason || null,
             price: def.price,
             discountPrice: def.discountPrice || null,
             currency: 'IDR',
@@ -933,19 +1049,16 @@ async function runSeed() {
             viewCount: def.viewCount,
           })
           .returning();
+
+        if (!createdAsset) {
+          throw new Error(`Failed to create asset ${def.title}`);
+        }
         assetId = createdAsset.id;
       }
 
       assetMap[def.slug] = assetId;
 
-      // 3. Ensure Deliverable Archive File (.zip) on Disk & in asset_files
-      const deliverableFileName = `${def.slug}-package.zip`;
-      const deliverableDiskPath = path.join(filesDir, deliverableFileName);
-      const zipBuffer = createSampleZip(def.title);
-      await fs.writeFile(deliverableDiskPath, zipBuffer);
-
-      const fileSha256 = crypto.createHash('sha256').update(zipBuffer).digest('hex');
-
+      // Link deliverable in asset_files
       const [existingFile] = await db
         .select()
         .from(assetFiles)
@@ -964,6 +1077,7 @@ async function runSeed() {
             version: '1.2.0',
             checksumSha256: fileSha256,
             isMain: true,
+            deletedAt: null,
             updatedAt: new Date(),
           })
           .where(eq(assetFiles.id, existingFile.id));
@@ -981,17 +1095,17 @@ async function runSeed() {
         });
       }
 
-      console.log(`  ✓ [${def.status.toUpperCase()}] ${def.title} (ID: ${assetId.slice(0, 8)}...)`);
+      const priceLabel = Number(def.price) === 0 ? 'FREE' : `Rp ${Number(def.price).toLocaleString('id-ID')}`;
+      console.log(`  ✓ [${def.status.toUpperCase()}] ${def.title} (${priceLabel})`);
     }
 
-    console.log(`✓ Successfully seeded and verified ${SEED_ASSETS.length} assets.`);
+    console.log(`✓ Processed ${SEED_ASSETS.length} curated demo assets.`);
 
     // ---------------------------------------------------------------------
-    // STEP 4: Seed Realistic Transactions & 60/40 Revenue Settlement
+    // STEP 4: Seed Transactions & Creator Revenue Settlements
     // ---------------------------------------------------------------------
-    console.log('\n💳 [4/5] Seeding Transactions, Payment Proofs & Ledger Mutations...');
+    console.log('\n💳 [4/5] Synchronizing Verified Transactions & 60/40 Revenue...');
 
-    // Prepare sample payment receipt images
     const receipt1Path = path.join(paymentsDir, 'receipt-seed-01.jpg');
     const receipt2Path = path.join(paymentsDir, 'receipt-seed-02.jpg');
     const receipt3Path = path.join(paymentsDir, 'receipt-seed-03.jpg');
@@ -1004,11 +1118,18 @@ async function runSeed() {
     await fs.writeFile(receipt4Path, createLuxuryEditorialPng(600, 800, 3));
     await fs.writeFile(receipt5Path, createLuxuryEditorialPng(600, 800, 4));
 
-    const userBuyerId = userMap['user@assetmarket.com'];
-    const sellerCreatorId = userMap['seller@assetmarket.com'];
-    const adminModeratorId = userMap['admin@assetmarket.com'];
+    const rawBuyerId = userMap['user@assetmarket.com'];
+    const rawSellerId = userMap['seller@assetmarket.com'];
+    const rawAdminId = userMap['admin@assetmarket.com'];
 
-    // Clean previous seed transactions to maintain idempotency
+    if (!rawBuyerId || !rawSellerId || !rawAdminId) {
+      throw new Error('Required seed accounts were not created properly.');
+    }
+
+    const userBuyerId: string = rawBuyerId;
+    const sellerCreatorId: string = rawSellerId;
+    const adminModeratorId: string = rawAdminId;
+
     const SEED_INVOICES = [
       'INV-20261001-A101',
       'INV-20261002-B202',
@@ -1024,18 +1145,26 @@ async function runSeed() {
 
     if (oldTxs.length > 0) {
       const oldTxIds = oldTxs.map((t) => t.id);
+      const oldItems = await db
+        .select({ id: transactionItems.id })
+        .from(transactionItems)
+        .where(inArray(transactionItems.transactionId, oldTxIds));
+      const oldItemIds = oldItems.map((i) => i.id);
+
       await db.delete(paymentConfirmations).where(inArray(paymentConfirmations.transactionId, oldTxIds));
       await db.delete(revenueLedger).where(inArray(revenueLedger.transactionId, oldTxIds));
+      if (oldItemIds.length > 0) {
+        await db.delete(revenueLedger).where(inArray(revenueLedger.transactionItemId, oldItemIds));
+      }
       await db.delete(transactionItems).where(inArray(transactionItems.transactionId, oldTxIds));
       await db.delete(transactions).where(inArray(transactions.id, oldTxIds));
     }
 
-    // Clean any prior standalone withdrawal ledger entries for clean slate
     await db
       .delete(revenueLedger)
-      .where(eq(revenueLedger.description, 'Pencairan dana kreator (Payout) ke Rekening BCA 0388912389 a.n Demo Seller'));
+      .where(and(eq(revenueLedger.userId, sellerCreatorId), eq(revenueLedger.entryType, 'withdrawal')));
 
-    // Transaction 1: Atelier Noir purchased by Demo User (Paid & Settled)
+    // 1. Tx 1: Atelier Noir
     const asset1Id = assetMap['atelier-noir-editorial-design-system'];
     if (asset1Id) {
       const [tx1] = await db
@@ -1049,55 +1178,59 @@ async function runSeed() {
           status: 'paid',
           paymentMethod: 'bank_transfer',
           paidAt: new Date(Date.now() - 4 * 86400000),
-          notes: 'Bank Central Asia transfer verification confirmed.',
+          notes: 'BCA Virtual Account settlement verified.',
         })
         .returning();
 
-      const [item1] = await db
-        .insert(transactionItems)
-        .values({
+      if (tx1) {
+        const [item1] = await db
+          .insert(transactionItems)
+          .values({
+            transactionId: tx1.id,
+            assetId: asset1Id,
+            sellerId: sellerCreatorId,
+            price: '275000.00',
+            sellerRatePercent: '60.00',
+            platformRatePercent: '40.00',
+            sellerAmount: '165000.00',
+            platformAmount: '110000.00',
+            licenseType: 'commercial',
+          })
+          .returning();
+
+        await db.insert(paymentConfirmations).values({
           transactionId: tx1.id,
-          assetId: asset1Id,
-          sellerId: sellerCreatorId,
-          price: '275000.00',
-          sellerRatePercent: '60.00',
-          platformRatePercent: '40.00',
-          sellerAmount: '165000.00', // 60%
-          platformAmount: '110000.00', // 40%
-          licenseType: 'commercial',
-        })
-        .returning();
+          userId: userBuyerId,
+          senderBank: 'Bank Central Asia (BCA)',
+          senderAccountNumber: '5270918234',
+          senderAccountName: 'Demo User',
+          destinationBank: 'Bank Central Asia (BCA) - Asset Market',
+          transferAmount: '275000.00',
+          transferDate: new Date(Date.now() - 4 * 86400000),
+          proofImageUrl: '/uploads/payments/receipt-seed-01.jpg',
+          status: 'verified',
+          verifiedBy: adminModeratorId,
+          verifiedAt: new Date(Date.now() - 4 * 86400000 + 3600000),
+        });
 
-      await db.insert(paymentConfirmations).values({
-        transactionId: tx1.id,
-        userId: userBuyerId,
-        senderBank: 'Bank Central Asia (BCA)',
-        senderAccountNumber: '5270918234',
-        senderAccountName: 'Demo User',
-        destinationBank: 'Bank Central Asia (BCA) - Asset Market',
-        transferAmount: '275000.00',
-        transferDate: new Date(Date.now() - 4 * 86400000),
-        proofImageUrl: '/uploads/payments/receipt-seed-01.jpg',
-        status: 'verified',
-        verifiedBy: adminModeratorId,
-        verifiedAt: new Date(Date.now() - 4 * 86400000 + 3600000),
-      });
-
-      await db.insert(revenueLedger).values({
-        userId: sellerCreatorId,
-        transactionId: tx1.id,
-        transactionItemId: item1.id,
-        entryType: 'sale_earning',
-        grossAmount: '275000.00',
-        platformFee: '110000.00',
-        netAmount: '165000.00',
-        balanceAfter: '165000.00',
-        description: 'Bagi hasil penjualan aset (60% kreator): "Atelier Noir Editorial Design System"',
-        createdAt: new Date(Date.now() - 4 * 86400000 + 3600000),
-      });
+        if (item1) {
+          await db.insert(revenueLedger).values({
+            userId: sellerCreatorId,
+            transactionId: tx1.id,
+            transactionItemId: item1.id,
+            entryType: 'sale_earning',
+            grossAmount: '275000.00',
+            platformFee: '110000.00',
+            netAmount: '165000.00',
+            balanceAfter: '165000.00',
+            description: 'Bagi hasil penjualan aset (60% kreator): "Atelier Noir Editorial Design System"',
+            createdAt: new Date(Date.now() - 4 * 86400000 + 3600000),
+          });
+        }
+      }
     }
 
-    // Transaction 2: Chronos Trading Core purchased by Demo User (Paid & Settled)
+    // 2. Tx 2: Chronos Trading Core
     const asset2Id = assetMap['chronos-trading-engine'];
     if (asset2Id) {
       const [tx2] = await db
@@ -1115,51 +1248,55 @@ async function runSeed() {
         })
         .returning();
 
-      const [item2] = await db
-        .insert(transactionItems)
-        .values({
+      if (tx2) {
+        const [item2] = await db
+          .insert(transactionItems)
+          .values({
+            transactionId: tx2.id,
+            assetId: asset2Id,
+            sellerId: sellerCreatorId,
+            price: '599000.00',
+            sellerRatePercent: '60.00',
+            platformRatePercent: '40.00',
+            sellerAmount: '359400.00',
+            platformAmount: '239600.00',
+            licenseType: 'commercial',
+          })
+          .returning();
+
+        await db.insert(paymentConfirmations).values({
           transactionId: tx2.id,
-          assetId: asset2Id,
-          sellerId: sellerCreatorId,
-          price: '599000.00',
-          sellerRatePercent: '60.00',
-          platformRatePercent: '40.00',
-          sellerAmount: '359400.00', // 60%
-          platformAmount: '239600.00', // 40%
-          licenseType: 'commercial',
-        })
-        .returning();
+          userId: userBuyerId,
+          senderBank: 'Bank Mandiri',
+          senderAccountNumber: '141009871234',
+          senderAccountName: 'Demo User',
+          destinationBank: 'Bank Central Asia (BCA) - Asset Market',
+          transferAmount: '599000.00',
+          transferDate: new Date(Date.now() - 3 * 86400000),
+          proofImageUrl: '/uploads/payments/receipt-seed-02.jpg',
+          status: 'verified',
+          verifiedBy: adminModeratorId,
+          verifiedAt: new Date(Date.now() - 3 * 86400000 + 1800000),
+        });
 
-      await db.insert(paymentConfirmations).values({
-        transactionId: tx2.id,
-        userId: userBuyerId,
-        senderBank: 'Bank Mandiri',
-        senderAccountNumber: '141009871234',
-        senderAccountName: 'Demo User',
-        destinationBank: 'Bank Central Asia (BCA) - Asset Market',
-        transferAmount: '599000.00',
-        transferDate: new Date(Date.now() - 3 * 86400000),
-        proofImageUrl: '/uploads/payments/receipt-seed-02.jpg',
-        status: 'verified',
-        verifiedBy: adminModeratorId,
-        verifiedAt: new Date(Date.now() - 3 * 86400000 + 1800000),
-      });
-
-      await db.insert(revenueLedger).values({
-        userId: sellerCreatorId,
-        transactionId: tx2.id,
-        transactionItemId: item2.id,
-        entryType: 'sale_earning',
-        grossAmount: '599000.00',
-        platformFee: '239600.00',
-        netAmount: '359400.00',
-        balanceAfter: '524400.00', // 165000 + 359400
-        description: 'Bagi hasil penjualan aset (60% kreator): "Chronos High-Frequency Trading Core"',
-        createdAt: new Date(Date.now() - 3 * 86400000 + 1800000),
-      });
+        if (item2) {
+          await db.insert(revenueLedger).values({
+            userId: sellerCreatorId,
+            transactionId: tx2.id,
+            transactionItemId: item2.id,
+            entryType: 'sale_earning',
+            grossAmount: '599000.00',
+            platformFee: '239600.00',
+            netAmount: '359400.00',
+            balanceAfter: '524400.00',
+            description: 'Bagi hasil penjualan aset (60% kreator): "Chronos High-Frequency Trading Core"',
+            createdAt: new Date(Date.now() - 3 * 86400000 + 1800000),
+          });
+        }
+      }
     }
 
-    // Transaction 3: Aura Typography Kit purchased by Demo Seller (from Demo User as Creator!)
+    // 3. Tx 3: Aura Typography Kit
     const asset4Id = assetMap['aura-display-typography-kit'];
     if (asset4Id) {
       const [tx3] = await db
@@ -1173,55 +1310,59 @@ async function runSeed() {
           status: 'paid',
           paymentMethod: 'bank_transfer',
           paidAt: new Date(Date.now() - 2 * 86400000),
-          notes: 'BNI Mobile Banking transfer verified.',
+          notes: 'BNI Mobile transfer verified.',
         })
         .returning();
 
-      const [item3] = await db
-        .insert(transactionItems)
-        .values({
+      if (tx3) {
+        const [item3] = await db
+          .insert(transactionItems)
+          .values({
+            transactionId: tx3.id,
+            assetId: asset4Id,
+            sellerId: userBuyerId,
+            price: '185000.00',
+            sellerRatePercent: '60.00',
+            platformRatePercent: '40.00',
+            sellerAmount: '111000.00',
+            platformAmount: '74000.00',
+            licenseType: 'standard',
+          })
+          .returning();
+
+        await db.insert(paymentConfirmations).values({
           transactionId: tx3.id,
-          assetId: asset4Id,
-          sellerId: userBuyerId, // Demo User is the creator of this font!
-          price: '185000.00',
-          sellerRatePercent: '60.00',
-          platformRatePercent: '40.00',
-          sellerAmount: '111000.00', // 60%
-          platformAmount: '74000.00', // 40%
-          licenseType: 'standard',
-        })
-        .returning();
+          userId: sellerCreatorId,
+          senderBank: 'Bank Negara Indonesia (BNI)',
+          senderAccountNumber: '0388912389',
+          senderAccountName: 'Demo Seller',
+          destinationBank: 'Bank Central Asia (BCA) - Asset Market',
+          transferAmount: '185000.00',
+          transferDate: new Date(Date.now() - 2 * 86400000),
+          proofImageUrl: '/uploads/payments/receipt-seed-03.jpg',
+          status: 'verified',
+          verifiedBy: adminModeratorId,
+          verifiedAt: new Date(Date.now() - 2 * 86400000 + 2400000),
+        });
 
-      await db.insert(paymentConfirmations).values({
-        transactionId: tx3.id,
-        userId: sellerCreatorId,
-        senderBank: 'Bank Negara Indonesia (BNI)',
-        senderAccountNumber: '0388912389',
-        senderAccountName: 'Demo Seller',
-        destinationBank: 'Bank Central Asia (BCA) - Asset Market',
-        transferAmount: '185000.00',
-        transferDate: new Date(Date.now() - 2 * 86400000),
-        proofImageUrl: '/uploads/payments/receipt-seed-03.jpg',
-        status: 'verified',
-        verifiedBy: adminModeratorId,
-        verifiedAt: new Date(Date.now() - 2 * 86400000 + 2400000),
-      });
-
-      await db.insert(revenueLedger).values({
-        userId: userBuyerId,
-        transactionId: tx3.id,
-        transactionItemId: item3.id,
-        entryType: 'sale_earning',
-        grossAmount: '185000.00',
-        platformFee: '74000.00',
-        netAmount: '111000.00',
-        balanceAfter: '111000.00',
-        description: 'Bagi hasil penjualan aset (60% kreator): "Aura Modern Serif & Display Typography Kit"',
-        createdAt: new Date(Date.now() - 2 * 86400000 + 2400000),
-      });
+        if (item3) {
+          await db.insert(revenueLedger).values({
+            userId: userBuyerId,
+            transactionId: tx3.id,
+            transactionItemId: item3.id,
+            entryType: 'sale_earning',
+            grossAmount: '185000.00',
+            platformFee: '74000.00',
+            netAmount: '111000.00',
+            balanceAfter: '111000.00',
+            description: 'Bagi hasil penjualan aset (60% kreator): "Aura Modern Serif & Display Typography Kit"',
+            createdAt: new Date(Date.now() - 2 * 86400000 + 2400000),
+          });
+        }
+      }
     }
 
-    // Transaction 4: Lumina SaaS Dashboard purchased by Demo User (Paid & Settled)
+    // 4. Tx 4: Lumina SaaS Dashboard
     const asset5Id = assetMap['lumina-saas-dashboard'];
     if (asset5Id) {
       const [tx4] = await db
@@ -1235,67 +1376,71 @@ async function runSeed() {
           status: 'paid',
           paymentMethod: 'bank_transfer',
           paidAt: new Date(Date.now() - 1 * 86400000),
-          notes: 'BCA QRIS payment settled automatically.',
+          notes: 'BCA QRIS settlement.',
         })
         .returning();
 
-      const [item4] = await db
-        .insert(transactionItems)
-        .values({
+      if (tx4) {
+        const [item4] = await db
+          .insert(transactionItems)
+          .values({
+            transactionId: tx4.id,
+            assetId: asset5Id,
+            sellerId: sellerCreatorId,
+            price: '390000.00',
+            sellerRatePercent: '60.00',
+            platformRatePercent: '40.00',
+            sellerAmount: '234000.00',
+            platformAmount: '156000.00',
+            licenseType: 'commercial',
+          })
+          .returning();
+
+        await db.insert(paymentConfirmations).values({
           transactionId: tx4.id,
-          assetId: asset5Id,
-          sellerId: sellerCreatorId,
-          price: '390000.00',
-          sellerRatePercent: '60.00',
-          platformRatePercent: '40.00',
-          sellerAmount: '234000.00', // 60%
-          platformAmount: '156000.00', // 40%
-          licenseType: 'commercial',
-        })
-        .returning();
+          userId: userBuyerId,
+          senderBank: 'Bank Central Asia (BCA)',
+          senderAccountNumber: '5270918234',
+          senderAccountName: 'Demo User',
+          destinationBank: 'Bank Central Asia (BCA) - Asset Market',
+          transferAmount: '390000.00',
+          transferDate: new Date(Date.now() - 1 * 86400000),
+          proofImageUrl: '/uploads/payments/receipt-seed-04.jpg',
+          status: 'verified',
+          verifiedBy: adminModeratorId,
+          verifiedAt: new Date(Date.now() - 1 * 86400000 + 1200000),
+        });
 
-      await db.insert(paymentConfirmations).values({
-        transactionId: tx4.id,
-        userId: userBuyerId,
-        senderBank: 'Bank Central Asia (BCA)',
-        senderAccountNumber: '5270918234',
-        senderAccountName: 'Demo User',
-        destinationBank: 'Bank Central Asia (BCA) - Asset Market',
-        transferAmount: '390000.00',
-        transferDate: new Date(Date.now() - 1 * 86400000),
-        proofImageUrl: '/uploads/payments/receipt-seed-04.jpg',
-        status: 'verified',
-        verifiedBy: adminModeratorId,
-        verifiedAt: new Date(Date.now() - 1 * 86400000 + 1200000),
-      });
+        if (item4) {
+          await db.insert(revenueLedger).values({
+            userId: sellerCreatorId,
+            transactionId: tx4.id,
+            transactionItemId: item4.id,
+            entryType: 'sale_earning',
+            grossAmount: '390000.00',
+            platformFee: '156000.00',
+            netAmount: '234000.00',
+            balanceAfter: '758400.00',
+            description: 'Bagi hasil penjualan aset (60% kreator): "Lumina SaaS Dashboard & Admin Component Kit"',
+            createdAt: new Date(Date.now() - 1 * 86400000 + 1200000),
+          });
+        }
 
-      await db.insert(revenueLedger).values({
-        userId: sellerCreatorId,
-        transactionId: tx4.id,
-        transactionItemId: item4.id,
-        entryType: 'sale_earning',
-        grossAmount: '390000.00',
-        platformFee: '156000.00',
-        netAmount: '234000.00',
-        balanceAfter: '758400.00', // 524400 + 234000
-        description: 'Bagi hasil penjualan aset (60% kreator): "Lumina SaaS Dashboard & Admin Component Kit"',
-        createdAt: new Date(Date.now() - 1 * 86400000 + 1200000),
-      });
-
-      // Also record a Payout / Withdrawal entry for Demo Seller
-      await db.insert(revenueLedger).values({
-        userId: sellerCreatorId,
-        entryType: 'withdrawal',
-        grossAmount: '250000.00',
-        platformFee: '0.00',
-        netAmount: '250000.00',
-        balanceAfter: '508400.00', // 758400 - 250000
-        description: 'Pencairan dana kreator (Payout) ke Rekening BCA 0388912389 a.n Demo Seller',
-        createdAt: new Date(Date.now() - 12 * 3600000),
-      });
+        // Payout withdrawal entry for Demo Seller
+        await db.insert(revenueLedger).values({
+          userId: sellerCreatorId,
+          entryType: 'withdrawal',
+          grossAmount: '250000.00',
+          platformFee: '0.00',
+          netAmount: '250000.00',
+          balanceAfter: '508400.00',
+          description: 'Pencairan dana kreator (Payout) ke Rekening BCA 0388912389 a.n Demo Seller',
+          createdAt: new Date(Date.now() - 12 * 3600000),
+        });
+      }
     }
 
-    // Transaction 5: Vogue 3D Interior pending payment confirmation (for Admin Approval demo)
+    // 5. Tx 5: Vogue 3D Interior pending payment confirmation
     const asset3Id = assetMap['vogue-velvet-3d-interior'];
     if (asset3Id) {
       const [tx5] = await db
@@ -1312,47 +1457,56 @@ async function runSeed() {
         })
         .returning();
 
-      await db.insert(transactionItems).values({
-        transactionId: tx5.id,
-        assetId: asset3Id,
-        sellerId: sellerCreatorId,
-        price: '320000.00',
-        sellerRatePercent: '60.00',
-        platformRatePercent: '40.00',
-        sellerAmount: '192000.00',
-        platformAmount: '128000.00',
-        licenseType: 'standard',
-      });
+      if (tx5) {
+        await db.insert(transactionItems).values({
+          transactionId: tx5.id,
+          assetId: asset3Id,
+          sellerId: sellerCreatorId,
+          price: '320000.00',
+          sellerRatePercent: '60.00',
+          platformRatePercent: '40.00',
+          sellerAmount: '192000.00',
+          platformAmount: '128000.00',
+          licenseType: 'standard',
+        });
 
-      await db.insert(paymentConfirmations).values({
-        transactionId: tx5.id,
-        userId: userBuyerId,
-        senderBank: 'Bank Central Asia (BCA)',
-        senderAccountNumber: '5270918234',
-        senderAccountName: 'Demo User',
-        destinationBank: 'Bank Central Asia (BCA) - Asset Market',
-        transferAmount: '320000.00',
-        transferDate: new Date(),
-        proofImageUrl: '/uploads/payments/receipt-seed-05.jpg',
-        status: 'pending', // Pending verification for admin queue demo!
-      });
+        await db.insert(paymentConfirmations).values({
+          transactionId: tx5.id,
+          userId: userBuyerId,
+          senderBank: 'Bank Central Asia (BCA)',
+          senderAccountNumber: '5270918234',
+          senderAccountName: 'Demo User',
+          destinationBank: 'Bank Central Asia (BCA) - Asset Market',
+          transferAmount: '320000.00',
+          transferDate: new Date(),
+          proofImageUrl: '/uploads/payments/receipt-seed-05.jpg',
+          status: 'pending',
+        });
+      }
     }
 
     console.log('✓ Seeded 5 transactions with verified payment proofs and creator revenue mutations.');
 
     // ---------------------------------------------------------------------
-    // STEP 5: Verification & Summary
+    // STEP 5: Final Verification Summary
     // ---------------------------------------------------------------------
     console.log('\n📊 [5/5] Final Verification Summary:');
-    const [assetCount] = await db.select({ value: db.$count(assets) }).from(assets);
-    const [txCount] = await db.select({ value: db.$count(transactions) }).from(transactions);
-    const [ledgerCount] = await db.select({ value: db.$count(revenueLedger) }).from(revenueLedger);
+    const [approvedRes] = await db
+      .select({ value: count() })
+      .from(assets)
+      .where(and(eq(assets.status, 'approved'), isNull(assets.deletedAt)));
+    const [pendingRes] = await db
+      .select({ value: count() })
+      .from(assets)
+      .where(and(eq(assets.status, 'pending'), isNull(assets.deletedAt)));
 
-    console.log(`• Total Assets in DB: ${assetCount?.value ?? SEED_ASSETS.length}`);
-    console.log(`• Total Transactions: ${txCount?.value ?? 5}`);
-    console.log(`• Total Revenue Mutations: ${ledgerCount?.value ?? 5}`);
+    const approvedCount = Number(approvedRes?.value ?? 0);
+    const pendingCount = Number(pendingRes?.value ?? 0);
+
+    console.log(`• Total Approved Assets in Catalog: ${approvedCount}`);
+    console.log(`• Total Pending Assets in Queue: ${pendingCount}`);
     console.log(`• Uploads Directory: ${rootUploads}`);
-    console.log('\n✨ Database seeding completed successfully!\n');
+    console.log('\n✨ Database seeding completed successfully! All assets have valid images.\n');
 
     process.exit(0);
   } catch (error) {

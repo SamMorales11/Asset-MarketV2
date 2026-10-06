@@ -5,6 +5,7 @@ import { adminPaymentService, type AdminPendingPaymentItem } from '../services/t
 import { formatCurrency } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback, getLuxuryPlaceholder } from '../utils/imageUrl';
 import { useToast } from '../composables/useToast';
+import { useConfirm } from '../composables/useConfirm';
 import AdminNav from '../components/AdminNav.vue';
 import EmptyState from '../components/EmptyState.vue';
 import Skeleton from '../components/Skeleton.vue';
@@ -22,6 +23,7 @@ import {
 } from 'lucide-vue-next';
 
 const { toast } = useToast();
+const { confirm } = useConfirm();
 
 // Active Tab: 'assets' | 'payments'
 const activeTab = ref<'assets' | 'payments'>('assets');
@@ -220,7 +222,14 @@ const totalSelectedPaymentsAmount = computed(() => {
 // SINGLE ASSET ACTIONS
 // -------------------------------------------------------------
 async function handleApproveAsset(asset: PendingAssetWithFiles) {
-  if (!confirm(`Setujui aset "${asset.title}" untuk tayang publik di marketplace?`)) {
+  const confirmed = await confirm({
+    title: 'Setujui Aset Digital',
+    message: `Setujui aset "${asset.title}" untuk tayang publik di marketplace? Aset akan segera dapat ditemukan dan dibeli oleh seluruh pengguna.`,
+    confirmText: 'Setujui & Publikasikan',
+    cancelText: 'Batal',
+    variant: 'success',
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -288,7 +297,14 @@ async function handleBulkApproveAssets() {
   const count = selectedAssetIds.value.length;
   if (count === 0) return;
 
-  if (!confirm(`Konfirmasi setujui dan publikasikan ${count} aset sekaligus?`)) {
+  const confirmed = await confirm({
+    title: 'Setujui Aset Massal',
+    message: `Konfirmasi setujui dan publikasikan ${count} aset terpilih secara massal ke etalase marketplace?`,
+    confirmText: `Setujui Semua (${count})`,
+    cancelText: 'Batal',
+    variant: 'success',
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -359,13 +375,16 @@ async function submitBulkReject() {
 // PAYMENT VERIFICATION & BULK ACTIONS
 // -------------------------------------------------------------
 async function handleVerifyPayment(payment: AdminPendingPaymentItem) {
-  if (
-    !confirm(
-      `Verifikasi pembayaran untuk Invoice ${payment.transaction.invoiceNumber} senilai ${formatCurrency(
-        payment.transferAmount
-      )}?\n\nTindakan ini akan:\n1. Membuka akses unduhan deliverable bagi pembeli (${payment.buyer.name})\n2. Mencatat pendapatan bagi hasil 60% ke saldo penjual.`
-    )
-  ) {
+  const confirmed = await confirm({
+    title: 'Verifikasi Pembayaran Manual',
+    message: `Verifikasi pembayaran untuk Invoice ${payment.transaction.invoiceNumber} senilai ${formatCurrency(
+      payment.transferAmount
+    )}?\n\nTindakan ini akan:\n1. Membuka akses unduhan deliverable bagi pembeli (${payment.buyer.name})\n2. Mencatat pendapatan bagi hasil 60% ke saldo penjual.`,
+    confirmText: 'Verifikasi & Buka Akses',
+    cancelText: 'Batal',
+    variant: 'success',
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -394,13 +413,16 @@ async function handleBulkVerifyPayments() {
   const count = selectedPaymentIds.value.length;
   if (count === 0) return;
 
-  if (
-    !confirm(
-      `Konfirmasi verifikasi ${count} pembayaran sekaligus dengan total transfer ${formatCurrency(
-        totalSelectedPaymentsAmount.value
-      )}?`
-    )
-  ) {
+  const confirmed = await confirm({
+    title: 'Verifikasi Pembayaran Massal',
+    message: `Konfirmasi verifikasi ${count} pembayaran sekaligus dengan total transfer ${formatCurrency(
+      totalSelectedPaymentsAmount.value
+    )}? Seluruh deliverable akan otomatis aktif bagi masing-masing pembeli.`,
+    confirmText: `Verifikasi Semua (${count})`,
+    cancelText: 'Batal',
+    variant: 'success',
+  });
+  if (!confirmed) {
     return;
   }
 

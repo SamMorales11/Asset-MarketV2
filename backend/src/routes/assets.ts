@@ -177,6 +177,114 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
 });
 
 /**
+ * Handler for submitting/resubmitting an asset for admin moderation
+ */
+async function handleAssetModerationSubmission(c: any) {
+  try {
+    const sessionUser = c.get('user');
+    const assetId = c.req.param('id');
+
+    if (!assetId) {
+      return c.json({ success: false, message: 'ID aset wajib disertakan.' }, 400);
+    }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assetId);
+    const idCondition = isUuid
+      ? or(eq(assets.id, assetId), eq(assets.slug, assetId))
+      : eq(assets.slug, assetId);
+
+    const [existing] = await db
+      .select()
+      .from(assets)
+      .where(and(idCondition, isNull(assets.deletedAt)))
+      .limit(1);
+
+    if (!existing) {
+      return c.json({ success: false, message: 'Aset tidak ditemukan.' }, 404);
+    }
+
+    // Permission check: only the seller who uploaded the asset (or admin) can submit it
+    if (
+      existing.sellerId !== sessionUser.userId &&
+      sessionUser.role !== 'admin' &&
+      sessionUser.role !== 'superadmin'
+    ) {
+      return c.json(
+        {
+          success: false,
+          message: 'Akses ditolak: Anda hanya dapat mengajukan aset milik Anda sendiri.',
+        },
+        403
+      );
+    }
+
+    // Status validations
+    if (existing.status === 'approved') {
+      return c.json(
+        {
+          success: false,
+          message: 'Aset ini sudah disetujui dan telah aktif di marketplace.',
+        },
+        400
+      );
+    }
+
+    if (existing.status === 'pending') {
+      return c.json(
+        {
+          success: false,
+          message: 'Aset ini sudah berada dalam antrean moderasi administrator.',
+        },
+        400
+      );
+    }
+
+    // Update status to 'pending', clear rejectionReason, and update timestamp
+    const [updatedAsset] = await db
+      .update(assets)
+      .set({
+        status: 'pending',
+        rejectionReason: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(assets.id, existing.id))
+      .returning();
+
+    if (!updatedAsset) {
+      throw new Error('Gagal memperbarui status aset di database');
+    }
+
+    return c.json({
+      success: true,
+      message: 'Aset berhasil diajukan untuk moderasi administrator.',
+      data: {
+        asset: formatAssetUrls(updatedAsset),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error submitting asset for moderation:', error);
+    return c.json(
+      {
+        success: false,
+        message: 'Gagal mengajukan moderasi aset. Silakan coba beberapa saat lagi.',
+        error: error?.message,
+      },
+      500
+    );
+  }
+}
+
+/**
+ * POST /assets/:id/submit
+ * POST /assets/:id/moderation
+ * POST /assets/:id/resubmit
+ * Submit or resubmit an asset for administrator moderation
+ */
+assetRoutes.post('/:id/submit', authMiddleware, handleAssetModerationSubmission);
+assetRoutes.post('/:id/moderation', authMiddleware, handleAssetModerationSubmission);
+assetRoutes.post('/:id/resubmit', authMiddleware, handleAssetModerationSubmission);
+
+/**
  * GET /assets/my
  * Retrieve all assets uploaded by the currently authenticated seller
  */

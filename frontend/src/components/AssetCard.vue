@@ -120,8 +120,6 @@ const typeLabel = computed(() => {
         <a
           v-if="asset.demoUrl"
           :href="asset.demoUrl"
-          target="_blank"
-          rel="noreferrer"
           class="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 backdrop-blur-md text-white/80 hover:text-white border border-white/[0.08] transition"
           title="Live Demo"
           @click.stop

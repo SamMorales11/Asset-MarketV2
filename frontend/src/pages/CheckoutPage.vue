@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth';
 import { assetService } from '../services/assets';
 import { transactionService, type CheckoutResponse } from '../services/transactions';
 import { formatCurrency } from '../utils/formatters';
+import { useToast } from '../composables/useToast';
 import type { Asset, DestinationBankAccount } from '../types';
 import {
   Building2,
@@ -23,6 +24,7 @@ import {
 
 const route = useRoute();
 const router = useRouter();
+const { toast } = useToast();
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 
@@ -134,8 +136,9 @@ async function copyAccountNumber(accountNumber: string, bank: string) {
     setTimeout(() => {
       copiedBank.value = null;
     }, 2500);
+    toast.success('Disalin ke Clipboard', `Nomor rekening ${bank} (${accountNumber}) berhasil disalin.`);
   } catch {
-    alert(`Nomor rekening: ${accountNumber}`);
+    toast.info('Nomor Rekening', `Nomor rekening: ${accountNumber}`);
   }
 }
 

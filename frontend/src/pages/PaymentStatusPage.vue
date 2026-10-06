@@ -19,7 +19,7 @@ import {
   ArrowRight,
   UploadCloud,
   Loader2,
-  ExternalLink,
+  Eye,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -37,6 +37,7 @@ const previousStatus = ref<string | null>(null);
 // Re-upload confirmation state if rejected or pending
 const isSubmittingProof = ref(false);
 const showReuploadForm = ref(false);
+const showProofPreview = ref(false);
 const submitError = ref<string | null>(null);
 const submitSuccess = ref<string | null>(null);
 
@@ -124,8 +125,9 @@ async function copyText(text: string, id: string) {
     setTimeout(() => {
       copiedBank.value = null;
     }, 2000);
+    toast.success('Disalin ke Clipboard', `Nomor rekening ${text} berhasil disalin.`);
   } catch {
-    alert(`Nomor rekening: ${text}`);
+    toast.info('Nomor Rekening', `Nomor rekening: ${text}`);
   }
 }
 
@@ -429,22 +431,35 @@ async function handleReuploadProof() {
           </div>
         </div>
 
-        <div v-if="detail.paymentConfirmation" class="rounded-2xl border border-border bg-elevated/70 p-4 flex flex-wrap items-center justify-between gap-4 text-xs">
-          <div>
-            <span class="text-text-secondary">Ditransfer ke:</span>
-            <span class="font-bold text-text-primary ml-1">{{ detail.paymentConfirmation.destinationBank }}</span>
-            <span class="text-text-secondary ml-3">Dari:</span>
-            <span class="font-bold text-text-primary ml-1">{{ detail.paymentConfirmation.senderAccountName }} ({{ detail.paymentConfirmation.senderBank }})</span>
+        <div v-if="detail.paymentConfirmation" class="rounded-2xl border border-border bg-elevated/70 p-4 space-y-3 text-xs">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <span class="text-text-secondary">Ditransfer ke:</span>
+              <span class="font-bold text-text-primary ml-1">{{ detail.paymentConfirmation.destinationBank }}</span>
+              <span class="text-text-secondary ml-3">Dari:</span>
+              <span class="font-bold text-text-primary ml-1">{{ detail.paymentConfirmation.senderAccountName }} ({{ detail.paymentConfirmation.senderBank }})</span>
+            </div>
+
+            <button
+              v-if="detail.paymentConfirmation.proofImageUrl"
+              type="button"
+              class="inline-flex items-center gap-1.5 text-secondary hover:text-secondary-hover font-semibold transition cursor-pointer"
+              @click="showProofPreview = !showProofPreview"
+            >
+              <Eye class="h-3.5 w-3.5" />
+              <span>{{ showProofPreview ? 'Sembunyikan Bukti' : 'Lihat Bukti yang Dikirim' }}</span>
+            </button>
           </div>
 
-          <a
-            :href="getAssetImageUrl(detail.paymentConfirmation.proofImageUrl)"
-            target="_blank"
-            class="inline-flex items-center gap-1.5 text-secondary hover:underline font-semibold"
-          >
-            <ExternalLink class="h-3.5 w-3.5" />
-            <span>Lihat Bukti yang Dikirim</span>
-          </a>
+          <div v-if="showProofPreview && detail.paymentConfirmation.proofImageUrl" class="mt-3 pt-3 border-t border-border/60">
+            <div class="max-w-md rounded-xl overflow-hidden border border-border bg-background/80 p-2">
+              <img
+                :src="getAssetImageUrl(detail.paymentConfirmation.proofImageUrl)"
+                alt="Bukti Transfer"
+                class="w-full max-h-72 object-contain rounded-lg"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

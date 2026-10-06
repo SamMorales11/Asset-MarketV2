@@ -6,6 +6,7 @@ import StatCardSkeleton from '../components/StatCardSkeleton.vue';
 import TableSkeleton from '../components/TableSkeleton.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
+import UserNav from '../components/UserNav.vue';
 import type { RevenueData } from '../types';
 import {
   Wallet,
@@ -123,13 +124,14 @@ async function handleSaveBankAccount() {
 <template>
   <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <!-- Breadcrumb -->
-    <nav class="mb-6 flex items-center gap-2 text-xs text-text-secondary">
+    <nav class="mb-4 flex items-center gap-2 text-xs text-text-secondary">
       <router-link to="/" class="hover:text-text-primary transition">Home</router-link>
       <span>/</span>
-      <router-link to="/dashboard" class="hover:text-text-primary transition">Dashboard</router-link>
-      <span>/</span>
-      <span class="text-text-primary font-medium">Revenue & Pembagian Hasil</span>
+      <span class="text-text-primary font-medium">Revenue & Payout</span>
     </nav>
+
+    <!-- User Navigation Sub-Header -->
+    <UserNav />
 
     <!-- Header -->
     <div class="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">

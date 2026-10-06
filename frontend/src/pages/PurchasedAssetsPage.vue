@@ -6,6 +6,7 @@ import { getAssetImageUrl, handleImageFallback } from '../utils/imageUrl';
 import { useToast } from '../composables/useToast';
 import EmptyState from '../components/EmptyState.vue';
 import Skeleton from '../components/Skeleton.vue';
+import UserNav from '../components/UserNav.vue';
 import type { PurchasedAsset } from '../types';
 import {
   Download,
@@ -73,7 +74,7 @@ async function handleDownload(params: {
   toast.info('Memulai Unduhan', `Sedang menyiapkan ${targetLabel}...`);
 
   try {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
     const token = localStorage.getItem('access_token');
     const url = params.fileId
       ? `${baseUrl}/purchases/download/${params.fileId}`
@@ -149,11 +150,14 @@ async function handleDownload(params: {
 <template>
   <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <!-- Breadcrumb -->
-    <nav class="mb-6 flex items-center gap-2 text-xs text-text-secondary">
+    <nav class="mb-4 flex items-center gap-2 text-xs text-text-secondary">
       <router-link to="/" class="hover:text-text-primary transition">Home</router-link>
       <span>/</span>
       <span class="text-text-primary font-medium">My Assets</span>
     </nav>
+
+    <!-- User Navigation Sub-Header -->
+    <UserNav />
 
     <!-- Header -->
     <div class="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">

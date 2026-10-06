@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "port:free": "tsx scripts/kill-port.ts",
+    "port:kill": "tsx scripts/kill-port.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",

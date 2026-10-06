@@ -373,8 +373,6 @@ async function handleClaimFree() {
                 >
                   <a
                     :href="asset.demoUrl"
-                    target="_blank"
-                    rel="noreferrer"
                     class="inline-flex items-center gap-2 rounded-xl bg-black/70 px-4 py-2.5 text-[12px] font-semibold text-white/90 backdrop-blur-md border border-white/[0.08] shadow-lg hover:bg-black/80 hover:text-white transition"
                   >
                     <Eye class="h-3.5 w-3.5 text-secondary" />

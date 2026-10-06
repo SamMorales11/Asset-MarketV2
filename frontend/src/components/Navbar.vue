@@ -125,7 +125,7 @@ router.afterEach(() => {
         <!-- Cart Button -->
         <router-link
           to="/cart"
-          class="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-elevated/80 text-text-secondary hover:text-text-primary hover:border-border-hover transition"
+          class="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-elevated/80 text-text-secondary hover:text-text-primary hover:border-border-hover transition active:scale-95"
           aria-label="Keranjang Belanja"
         >
           <ShoppingBag class="h-4 w-4" />
@@ -346,7 +346,7 @@ router.afterEach(() => {
 
         <!-- Mobile Menu Trigger -->
         <button
-          class="md:hidden p-2 text-text-secondary hover:text-text-primary rounded-xl border border-border bg-elevated/70"
+          class="md:hidden flex h-10 w-10 items-center justify-center text-text-secondary hover:text-text-primary rounded-xl border border-border bg-elevated/80 active:scale-95 transition cursor-pointer"
           @click="mobileMenuOpen = !mobileMenuOpen"
           aria-label="Toggle Navigation"
         >
@@ -374,21 +374,24 @@ router.afterEach(() => {
       <div class="space-y-1 pb-2 border-b border-border/60">
         <router-link
           to="/"
-          class="block py-2 text-sm font-medium text-text-secondary hover:text-text-primary"
+          class="flex items-center px-3 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-elevated-subtle transition"
+          active-class="text-primary font-bold bg-primary/10"
           @click="mobileMenuOpen = false"
         >
           Home
         </router-link>
         <router-link
           to="/explore"
-          class="block py-2 text-sm font-medium text-text-secondary hover:text-text-primary"
+          class="flex items-center px-3 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-elevated-subtle transition"
+          active-class="text-primary font-bold bg-primary/10"
           @click="mobileMenuOpen = false"
         >
           Catalog
         </router-link>
         <router-link
           to="/panduan"
-          class="block py-2 text-sm font-medium text-text-secondary hover:text-text-primary"
+          class="flex items-center px-3 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-elevated-subtle transition"
+          active-class="text-primary font-bold bg-primary/10"
           @click="mobileMenuOpen = false"
         >
           Panduan

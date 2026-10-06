@@ -87,19 +87,19 @@ function isActive(path: string) {
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="mt-4 flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+    <div class="mt-4 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar scrollbar-none pt-1 -mx-1 px-1">
       <router-link
         v-for="tab in adminTabs"
         :key="tab.path"
         :to="tab.path"
-        class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold whitespace-nowrap transition"
+        class="inline-flex items-center gap-2 rounded-xl px-3.5 sm:px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-all duration-200 active:scale-[0.97]"
         :class="
           isActive(tab.path)
-            ? 'bg-primary text-white shadow-md'
-            : 'text-text-secondary hover:text-text-primary hover:bg-elevated'
+            ? 'bg-primary text-white shadow-md shadow-primary/25 font-bold'
+            : 'text-text-secondary hover:text-text-primary hover:bg-elevated/80 border border-transparent hover:border-border/60'
         "
       >
-        <component :is="tab.icon" class="h-3.5 w-3.5 shrink-0" />
+        <component :is="tab.icon" class="h-4 w-4 sm:h-3.5 sm:w-3.5 shrink-0" />
         <span>{{ tab.name }}</span>
       </router-link>
     </div>

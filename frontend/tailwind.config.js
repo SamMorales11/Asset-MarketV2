@@ -26,6 +26,12 @@ export default {
           light: '#1DDC83',
         },
         background: '#0F0F0F',
+        surface: {
+          DEFAULT: '#161616',
+          card: '#161616',
+          subtle: '#1C1C1C',
+          hover: '#222222',
+        },
         elevated: {
           DEFAULT: '#1A1A1A',
           subtle: '#222222',

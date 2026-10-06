@@ -65,6 +65,19 @@ export const assetService = {
   },
 
   /**
+   * Seller: Submit or resubmit an asset for administrator moderation
+   */
+  async submitForModeration(assetId: string): Promise<Asset> {
+    const response = await apiClient.post<ApiResponse<{ asset: Asset }>>(
+      `/assets/${assetId}/submit`
+    );
+    if (!response.data.data?.asset) {
+      throw new Error(response.data.message || 'Gagal mengajukan aset ke moderasi admin');
+    }
+    return response.data.data.asset;
+  },
+
+  /**
    * Admin: Get queue of pending assets awaiting review
    */
   async getPendingAssets(): Promise<PendingAssetWithFiles[]> {
