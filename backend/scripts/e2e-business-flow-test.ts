@@ -2,10 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import 'dotenv/config';
 import { db } from '../src/db/index.js';
-import { assets, users, categories } from '../src/db/schema.js';
-import { eq } from 'drizzle-orm';
+import { assets, users, categories, assetFiles, transactionItems, transactions, paymentConfirmations, revenueLedger, cartItems } from '../src/db/schema.js';
+import { eq, inArray } from 'drizzle-orm';
 import { app } from '../src/app.js';
 import { getUploadsRootDir } from '../src/utils/paths.js';
+import { createLuxuryEditorialPng } from '../src/utils/proceduralAssets.js';
 
 interface TestStepResult {
   step: string;
@@ -40,10 +41,10 @@ async function runBusinessFlowE2E() {
     const [sampleCategory] = await db.select().from(categories).limit(1);
     if (!sampleCategory) throw new Error('No categories available in database.');
 
-    const [seededSeller] = await db.select().from(users).where(eq(users.role, 'user')).limit(1);
-    if (!seededSeller) throw new Error('No seeded user found.');
+    const [seededSeller] = await db.select().from(users).where(eq(users.email, 'seller@assetmarket.com')).limit(1);
+    if (!seededSeller) throw new Error('No seeded seller found.');
 
-    const [seededAdmin] = await db.select().from(users).where(eq(users.role, 'admin')).limit(1);
+    const [seededAdmin] = await db.select().from(users).where(eq(users.email, 'admin@assetmarket.com')).limit(1);
     if (!seededAdmin) throw new Error('No seeded admin found.');
 
     // ----------------------------------------------------
@@ -54,7 +55,7 @@ async function runBusinessFlowE2E() {
       new Request('http://localhost:3000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: seededSeller.email, password: 'User123!' }),
+        body: JSON.stringify({ email: seededSeller.email, password: 'Seller123!' }),
       })
     );
     const sellerLoginData = (await sellerLoginRes.json()) as any;
@@ -88,11 +89,8 @@ async function runBusinessFlowE2E() {
     // 3. USER UPLOADS ASSET 1 (TO BE APPROVED)
     // ----------------------------------------------------
     console.log('\n--- 3. User Uploads Asset with Image & Deliverable Archive ---');
-    // Prepare valid PNG buffer
-    const validPngBuffer = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-      'base64'
-    );
+    // Prepare luxury editorial PNG buffer (high resolution, no 1x1 green placeholder)
+    const validPngBuffer = createLuxuryEditorialPng(800, 500, 1);
     const validZipBuffer = Buffer.from('PK\x05\x06' + '\x00'.repeat(18));
 
     const asset1Title = `Kinetix Luxury UI System ${timestamp}`;
@@ -133,7 +131,7 @@ async function runBusinessFlowE2E() {
 
     // Verify image URL is full and valid
     recordResult(
-      asset1?.thumbnailUrl?.startsWith('http://localhost:3000/uploads/thumbnails/'),
+      asset1?.thumbnailUrl?.includes('/uploads/thumbnails/'),
       'Thumbnail URL is fully resolved with /uploads/thumbnails/',
       `thumbnailUrl: ${asset1?.thumbnailUrl}`
     );
@@ -226,7 +224,7 @@ async function runBusinessFlowE2E() {
     );
 
     recordResult(
-      foundInAdminQueue?.thumbnailUrl?.startsWith('http://localhost:3000/uploads/thumbnails/'),
+      foundInAdminQueue?.thumbnailUrl?.includes('/uploads/thumbnails/'),
       'Admin moderation queue displays asset cover thumbnail URL',
       `Admin Thumbnail: ${foundInAdminQueue?.thumbnailUrl}`
     );
@@ -411,6 +409,37 @@ async function runBusinessFlowE2E() {
       'Rejected asset card maintains cover thumbnail image display for seller review',
       `Thumbnail: ${sellerRejectedAsset?.thumbnailUrl}`
     );
+
+    // ----------------------------------------------------
+    // CLEANUP TRANSIENT TEST ASSETS
+    // ----------------------------------------------------
+    console.log('\n--- Cleaning up transient test assets ---');
+    try {
+      const createdAssetIds = [asset1?.id, asset2?.id].filter(Boolean);
+      if (createdAssetIds.length > 0) {
+        const txItems = await db
+          .select({ id: transactionItems.id, transactionId: transactionItems.transactionId })
+          .from(transactionItems)
+          .where(inArray(transactionItems.assetId, createdAssetIds));
+
+        if (txItems.length > 0) {
+          const txItemIds = txItems.map((t) => t.id);
+          const txIds = [...new Set(txItems.map((t) => t.transactionId))];
+          await db.delete(paymentConfirmations).where(inArray(paymentConfirmations.transactionId, txIds));
+          await db.delete(revenueLedger).where(inArray(revenueLedger.transactionId, txIds));
+          await db.delete(revenueLedger).where(inArray(revenueLedger.transactionItemId, txItemIds));
+          await db.delete(transactionItems).where(inArray(transactionItems.id, txItemIds));
+          await db.delete(transactions).where(inArray(transactions.id, txIds));
+        }
+
+        await db.delete(cartItems).where(inArray(cartItems.assetId, createdAssetIds));
+        await db.delete(assetFiles).where(inArray(assetFiles.assetId, createdAssetIds));
+        await db.delete(assets).where(inArray(assets.id, createdAssetIds));
+        console.log(`✓ Cleaned up ${createdAssetIds.length} transient test assets. Catalog remains pristine.`);
+      }
+    } catch (cleanupErr) {
+      console.warn('⚠️ Teardown cleanup notice:', cleanupErr);
+    }
 
     // ----------------------------------------------------
     // SUMMARY

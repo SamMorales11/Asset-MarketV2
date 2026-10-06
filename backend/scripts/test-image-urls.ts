@@ -9,7 +9,7 @@ const TEST_URLS = [
   { name: 'Obsidian Icons', url: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=800&q=80' },
   { name: 'Cinematic Audio', url: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=800&q=80' },
   { name: 'Zenith Banking Mobile', url: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=800&q=80' },
-  { name: 'Prism Glass 3D', url: 'https://images.unsplash.com/photo-1633493106115-6126620573be?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Prism Glass 3D', url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80' },
   { name: 'Quantum Agency Next.js', url: 'https://images.unsplash.com/photo-1522542550221-31fd19575a2d?auto=format&fit=crop&w=800&q=80' },
   { name: 'Wireframe Kit (FREE)', url: 'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?auto=format&fit=crop&w=800&q=80' },
   { name: 'Developer CLI Tools (FREE)', url: 'https://images.unsplash.com/photo-1629654297299-c8506221ca97?auto=format&fit=crop&w=800&q=80' },

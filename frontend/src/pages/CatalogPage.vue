@@ -22,6 +22,7 @@ import {
   AlertCircle,
   ChevronsLeft,
   ChevronsRight,
+  X,
 } from 'lucide-vue-next';
 
 const route = useRoute();
