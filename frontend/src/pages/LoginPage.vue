@@ -168,17 +168,31 @@ function fillDemo(email: string, password: string) {
           <div class="grid grid-cols-2 gap-2">
             <button
               type="button"
-              class="rounded-lg border border-border bg-background py-1.5 text-[11px] text-text-secondary hover:text-text-primary hover:border-border-hover transition"
+              class="rounded-lg border border-border bg-background py-1.5 px-2 text-[11px] text-text-secondary hover:text-text-primary hover:border-border-hover transition text-center truncate"
+              @click="fillDemo('user@assetmarket.com', 'User123!')"
+            >
+              Demo Buyer
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-border bg-background py-1.5 px-2 text-[11px] text-text-secondary hover:text-text-primary hover:border-border-hover transition text-center truncate"
               @click="fillDemo('seller@assetmarket.com', 'Seller123!')"
             >
               Creator / Seller
             </button>
             <button
               type="button"
-              class="rounded-lg border border-border bg-background py-1.5 text-[11px] text-text-secondary hover:text-text-primary hover:border-border-hover transition"
+              class="rounded-lg border border-border bg-background py-1.5 px-2 text-[11px] text-text-secondary hover:text-text-primary hover:border-border-hover transition text-center truncate"
               @click="fillDemo('admin@assetmarket.com', 'Admin123!')"
             >
-              Admin Staff
+              Moderator / Admin
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-border bg-background py-1.5 px-2 text-[11px] text-text-secondary hover:text-text-primary hover:border-border-hover transition text-center truncate"
+              @click="fillDemo('superadmin@assetmarket.com', 'SuperAdmin123!')"
+            >
+              SuperAdmin
             </button>
           </div>
         </div>

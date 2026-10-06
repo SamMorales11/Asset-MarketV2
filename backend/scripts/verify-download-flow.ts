@@ -71,6 +71,7 @@ async function run() {
     const filePath = path.resolve(process.cwd(), 'uploads', existingFile.fileKey);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, testDeliverableContent);
+    await db.update(assetFiles).set({ fileSizeBytes: testDeliverableContent.length }).where(eq(assetFiles.id, existingFile.id));
     console.log(`   📁 Wrote physical deliverable matching DB fileKey: ${existingFile.fileKey}`);
   } else {
     await db.insert(assetFiles).values({

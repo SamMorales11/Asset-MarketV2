@@ -271,8 +271,8 @@ export class AssetFileService {
     return {
       ...downloadStream,
       fileName: file.fileName,
-      mimeType: file.mimeType || 'application/octet-stream',
-      fileSizeBytes: file.fileSizeBytes,
+      mimeType: file.mimeType || downloadStream.mimeType || 'application/octet-stream',
+      fileSizeBytes: downloadStream.fileSizeBytes ?? file.fileSizeBytes,
     };
   }
 }

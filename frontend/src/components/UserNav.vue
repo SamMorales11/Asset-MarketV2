@@ -115,6 +115,14 @@ function isActive(path: string) {
       <!-- Quick Action Buttons -->
       <div class="flex items-center gap-2.5">
         <router-link
+          v-if="authStore.isAdmin || authStore.isSuperAdmin"
+          to="/admin/dashboard"
+          class="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition"
+        >
+          <ShieldCheck class="h-4 w-4" />
+          <span>Admin Center</span>
+        </router-link>
+        <router-link
           to="/upload"
           class="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-primary/20 hover:bg-primary-hover transition"
         >

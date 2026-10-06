@@ -133,10 +133,9 @@ cartRoutes.get('/', async (c) => {
 });
 
 /**
- * POST /cart/items
- * Add an asset item to user's cart
+ * Add an asset item to user's cart (supported on both POST /cart/items and POST /cart)
  */
-cartRoutes.post('/items', async (c) => {
+const handleAddToCart = async (c: any) => {
   try {
     const sessionUser = c.get('user');
     const body = await c.req.json();
@@ -275,7 +274,10 @@ cartRoutes.post('/items', async (c) => {
       500
     );
   }
-});
+};
+
+cartRoutes.post('/', handleAddToCart);
+cartRoutes.post('/items', handleAddToCart);
 
 /**
  * DELETE /cart/items/:id

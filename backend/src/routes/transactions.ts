@@ -311,6 +311,39 @@ transactionRoutes.post('/checkout', async (c) => {
 });
 
 /**
+ * GET /transactions
+ * Retrieve transaction history for current authenticated user
+ */
+transactionRoutes.get('/transactions', async (c) => {
+  try {
+    const sessionUser = c.get('user');
+    const userTxs = await db
+      .select({
+        id: transactions.id,
+        invoiceNumber: transactions.invoiceNumber,
+        totalAmount: transactions.totalAmount,
+        status: transactions.status,
+        createdAt: transactions.createdAt,
+        paidAt: transactions.paidAt,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.buyerId, sessionUser.userId), isNull(transactions.deletedAt)))
+      .orderBy(desc(transactions.createdAt));
+
+    return c.json({
+      success: true,
+      data: {
+        transactions: userTxs,
+        totalCount: userTxs.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching transactions:', error);
+    return c.json({ success: false, message: 'Failed to fetch transactions', error: error?.message }, 500);
+  }
+});
+
+/**
  * GET /transactions/:invoiceNumber
  * Retrieve invoice status, items, expiration timer, destination bank accounts, and transfer instructions
  */

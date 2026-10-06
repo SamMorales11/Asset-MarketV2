@@ -1297,6 +1297,7 @@ adminRoutes.get('/revenue/users', async (c) => {
           sellersCount: relevantUsers.length,
         },
         sellers: relevantUsers,
+        users: relevantUsers,
       },
     });
   } catch (error: any) {

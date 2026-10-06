@@ -21,6 +21,48 @@ export const userRoutes = new Hono();
 userRoutes.use('*', authMiddleware);
 
 /**
+ * GET /users/me
+ * Retrieve currently authenticated user profile
+ */
+userRoutes.get('/me', async (c) => {
+  try {
+    const sessionUser = c.get('user');
+
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        avatarUrl: users.avatarUrl,
+        phone: users.phone,
+        bio: users.bio,
+        isVerifiedSeller: users.isVerifiedSeller,
+        bankName: users.bankName,
+        bankAccountNumber: users.bankAccountNumber,
+        bankAccountHolder: users.bankAccountHolder,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(and(eq(users.id, sessionUser.userId), isNull(users.deletedAt)))
+      .limit(1);
+
+    if (!user) {
+      return c.json({ success: false, message: 'User not found' }, 404);
+    }
+
+    return c.json({
+      success: true,
+      data: { user },
+    });
+  } catch (error: any) {
+    console.error('Get /users/me Error:', error);
+    return c.json({ success: false, message: 'Failed to retrieve profile', error: error?.message }, 500);
+  }
+});
+
+/**
  * GET /users/me/assets
  * Retrieve all digital assets purchased by current user (with deliverables download links)
  */
