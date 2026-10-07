@@ -11,6 +11,7 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
 } from '../lib/index.js';
+import { Errors, handleError, isConstraintError, logError } from '../lib/errors.js';
 import { authMiddleware } from '../middleware/index.js';
 import type { SafeUser } from '../types/index.js';
 
@@ -134,15 +135,20 @@ authRoutes.post('/register', async (c) => {
       201
     );
   } catch (error: any) {
-    console.error('Registration Error:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'An unexpected error occurred during registration',
-        error: error?.message,
-      },
-      500
-    );
+    // Check for unique constraint violation (e.g., duplicate email)
+    if (isConstraintError(error)) {
+      logError(error, 'Auth/register');
+      return c.json(
+        {
+          success: false,
+          message: 'Email is already registered. Please sign in instead.',
+        },
+        409
+      );
+    }
+
+    const appError = handleError(error, 'Auth/register');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -234,15 +240,8 @@ authRoutes.post('/login', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Login Error:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'An unexpected error occurred during login',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Auth/login');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -329,15 +328,8 @@ authRoutes.post('/refresh', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Refresh Token Error:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Could not refresh authentication token',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Auth/refresh');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -398,14 +390,7 @@ authRoutes.get('/me', authMiddleware, async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Get Profile Error:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to retrieve profile',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Auth/me');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });

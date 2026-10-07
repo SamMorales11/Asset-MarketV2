@@ -15,6 +15,7 @@ import {
 } from '../db/schema.js';
 import { authMiddleware, requireRole } from '../middleware/index.js';
 import { hashPassword } from '../lib/index.js';
+import { Errors, handleError } from '../lib/errors.js';
 import { toAbsoluteUrl, formatAssetUrls } from '../utils/url.js';
 
 export const adminRoutes = new Hono();
@@ -93,15 +94,8 @@ adminRoutes.get('/assets/pending', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching pending assets:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to retrieve pending review queue',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Admin/pending-assets');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -168,15 +162,8 @@ adminRoutes.post('/assets/:id/approve', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error approving asset:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to approve asset',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Admin/approve-asset');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -251,15 +238,8 @@ adminRoutes.post('/assets/:id/reject', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error rejecting asset:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to reject asset',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Admin/reject-asset');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -363,15 +343,8 @@ adminRoutes.get('/payments/pending', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching pending payments:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to retrieve pending payment confirmations',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Admin/pending-payments');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -520,15 +493,8 @@ adminRoutes.post('/payments/:id/verify', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error verifying payment:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to verify payment',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Admin/verify-payment');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -618,15 +584,8 @@ adminRoutes.post('/payments/:id/reject', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error rejecting payment:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to reject payment',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Admin/reject-payment');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -780,8 +739,8 @@ adminRoutes.get('/dashboard', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching admin dashboard:', error);
-    return c.json({ success: false, message: 'Failed to fetch admin dashboard stats', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/dashboard');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -904,8 +863,8 @@ adminRoutes.get('/users', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error listing users:', error);
-    return c.json({ success: false, message: 'Failed to list users', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/list-users');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1030,8 +989,8 @@ adminRoutes.get('/users/:id', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching user detail:', error);
-    return c.json({ success: false, message: 'Failed to fetch user detail', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/user-detail');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1118,8 +1077,8 @@ adminRoutes.put('/users/:id', async (c) => {
       data: updated,
     });
   } catch (error: any) {
-    console.error('Error updating user:', error);
-    return c.json({ success: false, message: 'Failed to update user', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/update-user');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1185,8 +1144,8 @@ adminRoutes.post('/users/:id/toggle-status', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error toggling user status:', error);
-    return c.json({ success: false, message: 'Failed to update user status', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/toggle-user-status');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1301,8 +1260,8 @@ adminRoutes.get('/revenue/users', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching admin revenue per user:', error);
-    return c.json({ success: false, message: 'Failed to fetch revenue per user', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/revenue-per-user');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1387,8 +1346,8 @@ adminRoutes.get('/revenue/users/:id', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching user revenue detail:', error);
-    return c.json({ success: false, message: 'Failed to fetch user revenue detail', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/user-revenue-detail');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1452,8 +1411,8 @@ adminRoutes.get('/admins', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error listing admins:', error);
-    return c.json({ success: false, message: 'Failed to list admins', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/list-admins');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1554,8 +1513,8 @@ adminRoutes.post('/admins', async (c) => {
       201
     );
   } catch (error: any) {
-    console.error('Error creating admin:', error);
-    return c.json({ success: false, message: 'Gagal membuat admin baru', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/create-admin');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1619,8 +1578,8 @@ adminRoutes.get('/admins/:id', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching admin detail:', error);
-    return c.json({ success: false, message: 'Failed to fetch admin detail', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/admin-detail');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1745,8 +1704,8 @@ adminRoutes.put('/admins/:id', async (c) => {
       data: updated,
     });
   } catch (error: any) {
-    console.error('Error updating admin:', error);
-    return c.json({ success: false, message: 'Gagal memperbarui admin', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/update-admin');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1835,8 +1794,8 @@ adminRoutes.delete('/admins/:id', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error deleting admin:', error);
-    return c.json({ success: false, message: 'Gagal menonaktifkan admin', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/delete-admin');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1893,8 +1852,8 @@ adminRoutes.post('/admins/:id/reactivate', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error reactivating admin:', error);
-    return c.json({ success: false, message: 'Gagal mengaktifkan kembali admin', error: error?.message }, 500);
+    const appError = handleError(error, 'Admin/reactivate-admin');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 

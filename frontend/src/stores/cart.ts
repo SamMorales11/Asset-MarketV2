@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { cartService } from '../services/transactions';
 import { useAuthStore } from './auth';
+import { useToast } from '../composables/useToast';
 import type { Asset } from '../types';
 
 export interface LocalCartItem {
@@ -18,6 +19,7 @@ export const useCartStore = defineStore('cart', () => {
   const error = ref<string | null>(null);
 
   const authStore = useAuthStore();
+  const toast = useToast();
 
   const itemCount = computed(() => items.value.length);
   const subtotal = computed(() =>
@@ -72,6 +74,7 @@ export const useCartStore = defineStore('cart', () => {
       price,
     };
 
+    // Optimistic update
     items.value.push(localEntry);
 
     if (authStore.isAuthenticated) {
@@ -79,7 +82,14 @@ export const useCartStore = defineStore('cart', () => {
         const res = await cartService.addToCart(asset.id);
         localEntry.cartItemId = res.cartItemId;
       } catch (err: any) {
-        console.error('Failed to sync added item with backend cart:', err);
+        // Rollback optimistic update
+        const idx = items.value.findIndex(i => i.id === asset.id);
+        if (idx !== -1) {
+          items.value.splice(idx, 1);
+        }
+        // Show error notification
+        toast.error('Gagal Menambah ke Keranjang', err?.message || 'Terjadi kesalahan saat menambahkan item');
+        console.error('Failed to sync cart item:', err);
       }
     }
   }
@@ -92,6 +102,13 @@ export const useCartStore = defineStore('cart', () => {
       (i) => i.id === itemIdOrAssetId || i.assetId === itemIdOrAssetId || i.cartItemId === itemIdOrAssetId
     );
 
+    // Store for rollback
+    const removedIdx = items.value.findIndex(
+      (i) => i.id === itemIdOrAssetId || i.assetId === itemIdOrAssetId || i.cartItemId === itemIdOrAssetId
+    );
+    const removedItem = removedIdx !== -1 ? { ...items.value[removedIdx] } : null;
+
+    // Optimistic remove
     items.value = items.value.filter(
       (i) => i.id !== itemIdOrAssetId && i.assetId !== itemIdOrAssetId && i.cartItemId !== itemIdOrAssetId
     );
@@ -101,7 +118,13 @@ export const useCartStore = defineStore('cart', () => {
         const idToDelete = itemToRemove.cartItemId || itemToRemove.assetId;
         await cartService.removeFromCart(idToDelete);
       } catch (err: any) {
-        console.error('Failed to remove item from backend cart:', err);
+        // Rollback optimistic remove
+        if (removedItem && removedIdx !== -1) {
+          items.value.splice(removedIdx, 0, removedItem);
+        }
+        // Show error notification
+        toast.error('Gagal Menghapus dari Keranjang', err?.message || 'Terjadi kesalahan saat menghapus item');
+        console.error('Failed to remove cart item:', err);
       }
     }
   }
@@ -110,13 +133,21 @@ export const useCartStore = defineStore('cart', () => {
    * Clear All Items in Cart
    */
   async function clearCart() {
+    // Store for potential rollback
+    const previousItems = [...items.value];
+
+    // Optimistic clear
     items.value = [];
 
     if (authStore.isAuthenticated) {
       try {
         await cartService.clearCart();
       } catch (err: any) {
-        console.error('Failed to clear backend cart:', err);
+        // Rollback optimistic clear
+        items.value = previousItems;
+        // Show error notification
+        toast.error('Gagal Mengosongkan Keranjang', err?.message || 'Terjadi kesalahan saat mengosongkan keranjang');
+        console.error('Failed to clear cart:', err);
       }
     }
   }

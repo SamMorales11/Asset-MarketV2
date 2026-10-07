@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { eq, and, isNull, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { categories, assets } from '../db/schema.js';
+import { Errors, handleError } from '../lib/errors.js';
 
 export const categoryRoutes = new Hono();
 
@@ -86,21 +87,13 @@ categoryRoutes.get('/', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching categories:', error);
+    // Return empty categories instead of default - let client handle empty state
+    const appError = handleError(error, 'Categories/list');
+    console.warn(`Categories fetch failed, returning empty list: ${appError.message}`);
     return c.json({
       success: true,
       data: {
-        categories: DEFAULT_CATEGORIES.map((cat, idx) => ({
-          id: `default-cat-${idx + 1}`,
-          ...cat,
-          isActive: true,
-          sortOrder: idx,
-          parentId: null,
-          deletedAt: null,
-          assetCount: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })),
+        categories: [],
       },
     });
   }

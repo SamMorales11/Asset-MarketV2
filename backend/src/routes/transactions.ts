@@ -17,6 +17,7 @@ import {
   cartItems,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/index.js';
+import { Errors, handleError, logError } from '../lib/errors.js';
 import { assetFileService } from '../services/assetFileService.js';
 import { toAbsoluteUrl, formatAssetUrls } from '../utils/url.js';
 
@@ -298,15 +299,8 @@ transactionRoutes.post('/checkout', async (c) => {
       201
     );
   } catch (error: any) {
-    console.error('Checkout error:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to process checkout',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Checkout');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -338,8 +332,8 @@ transactionRoutes.get('/transactions', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching transactions:', error);
-    return c.json({ success: false, message: 'Failed to fetch transactions', error: error?.message }, 500);
+    const appError = handleError(error, 'Transactions/list');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -450,15 +444,8 @@ transactionRoutes.get('/transactions/:invoiceNumber', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching transaction detail:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to retrieve invoice details',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Transactions/detail');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -591,15 +578,12 @@ transactionRoutes.post('/payments/confirm', async (c) => {
       201
     );
   } catch (error: any) {
-    console.error('Error submitting payment confirmation:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to submit payment confirmation',
-        error: error?.message,
-      },
-      500
-    );
+    // Cleanup uploaded receipt if confirmation fails
+    if (proofImageUrl) {
+      logError(`Cleanup orphan receipt: ${proofImageUrl}`, 'Payments/confirm');
+    }
+    const appError = handleError(error, 'Payments/confirm');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -709,15 +693,8 @@ transactionRoutes.get('/purchases/my', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching purchased assets:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to retrieve your purchased assets',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Purchases/list');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -755,18 +732,12 @@ transactionRoutes.get('/purchases/download/:fileId', async (c) => {
     }
     return c.body(download.buffer as any, 200, headers);
   } catch (error: any) {
-    console.error('Error downloading asset file:', error);
+    logError(error, 'Purchases/download');
     const isNotFound = error?.message?.includes('File not found') || error?.message?.includes('tidak ditemukan');
-    return c.json(
-      {
-        success: false,
-        message: isNotFound
-          ? 'Berkas fisik aset tidak ditemukan di server penyimpanan. Silakan hubungi tim dukungan.'
-          : 'Gagal mengunduh berkas aset',
-        error: error?.message,
-      },
-      isNotFound ? 404 : 500
-    );
+    const appError = isNotFound
+      ? Errors.notFound('File not found on storage server. Please contact support.')
+      : Errors.internal('Failed to download asset file');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -804,18 +775,12 @@ transactionRoutes.get('/purchases/assets/:assetId/download', async (c) => {
     }
     return c.body(download.buffer as any, 200, headers);
   } catch (error: any) {
-    console.error('Error downloading asset package:', error);
+    logError(error, 'Purchases/assets/download');
     const isNotFound = error?.message?.includes('File not found') || error?.message?.includes('tidak ditemukan');
-    return c.json(
-      {
-        success: false,
-        message: isNotFound
-          ? 'Berkas fisik aset tidak ditemukan di server penyimpanan. Silakan hubungi tim dukungan.'
-          : 'Gagal mengunduh paket deliverable',
-        error: error?.message,
-      },
-      isNotFound ? 404 : 500
-    );
+    const appError = isNotFound
+      ? Errors.notFound('File not found on storage server. Please contact support.')
+      : Errors.internal('Failed to download asset package');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -917,7 +882,7 @@ transactionRoutes.post('/purchases/claim/:assetId', async (c) => {
       201
     );
   } catch (error: any) {
-    console.error('Error claiming free asset:', error);
-    return c.json({ success: false, message: 'Gagal mengklaim aset gratis', error: error?.message }, 500);
+    const appError = handleError(error, 'Purchases/claim');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });

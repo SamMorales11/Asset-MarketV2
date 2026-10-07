@@ -7,6 +7,62 @@ import axios, {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
+/**
+ * Normalized API Error structure
+ * Ensures consistent error shape across all API calls
+ */
+export interface ApiError {
+  success: false;
+  message: string;
+  code?: string;
+  errors?: Array<{ field: string; message: string }>;
+  originalError?: string;
+}
+
+function normalizeError(error: AxiosError | unknown): ApiError {
+  // Axios error with response
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError<{ success?: boolean; message?: string; code?: string; error?: any }>;
+
+    // Server returned an error response
+    if (axiosError.response?.data) {
+      const data = axiosError.response.data;
+      return {
+        success: false,
+        message: data?.message || axiosError.message || 'Terjadi kesalahan server',
+        code: data?.code,
+        errors: data?.error,
+      };
+    }
+
+    // Network error
+    if (axiosError.message === 'Network Error' || !axiosError.response) {
+      return {
+        success: false,
+        message: 'Koneksi terputus. Periksa koneksi internet Anda.',
+        code: 'NETWORK_ERROR',
+      };
+    }
+
+    // Request timeout
+    if (axiosError.code === 'ECONNABORTED') {
+      return {
+        success: false,
+        message: 'Request timeout. Silakan coba lagi.',
+        code: 'TIMEOUT',
+      };
+    }
+  }
+
+  // Unknown error
+  return {
+    success: false,
+    message: 'Terjadi kesalahan yang tidak terduga',
+    code: 'UNKNOWN_ERROR',
+    originalError: error instanceof Error ? error.message : String(error),
+  };
+}
+
 // Create central Axios client
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -26,7 +82,7 @@ apiClient.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(normalizeError(error))
 );
 
 // Concurrency Queue for Silent Token Refresh
@@ -54,7 +110,7 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     if (!originalRequest) {
-      return Promise.reject(error.response?.data || error);
+      return Promise.reject(normalizeError(error));
     }
 
     const requestUrl = originalRequest.url || '';
@@ -110,12 +166,12 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('access_token');
         // Dispatch custom event for stores/router to react to session expiration
         window.dispatchEvent(new CustomEvent('auth:session-expired'));
-        return Promise.reject(refreshErr);
+        return Promise.reject(normalizeError(refreshErr));
       } finally {
         isRefreshing = false;
       }
     }
 
-    return Promise.reject(error.response?.data || error.message);
+    return Promise.reject(normalizeError(error));
   }
 );

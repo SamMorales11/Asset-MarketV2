@@ -3,6 +3,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { carts, cartItems, assets, categories, users, transactions, transactionItems } from '../db/schema.js';
 import { authMiddleware } from '../middleware/index.js';
+import { Errors, handleError } from '../lib/errors.js';
 import { formatAssetUrls } from '../utils/url.js';
 
 export const cartRoutes = new Hono();
@@ -120,15 +121,8 @@ cartRoutes.get('/', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching cart:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to retrieve shopping cart',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Cart/get');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -264,15 +258,8 @@ const handleAddToCart = async (c: any) => {
       201
     );
   } catch (error: any) {
-    console.error('Error adding item to cart:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to add item to cart',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Cart/add');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 };
 
@@ -328,15 +315,8 @@ cartRoutes.delete('/items/:id', async (c) => {
       message: 'Item removed from your cart',
     });
   } catch (error: any) {
-    console.error('Error removing item from cart:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to remove item from cart',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Cart/remove');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -358,14 +338,7 @@ cartRoutes.delete('/clear', async (c) => {
       message: 'Cart cleared successfully',
     });
   } catch (error: any) {
-    console.error('Error clearing cart:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to clear cart',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Cart/clear');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });

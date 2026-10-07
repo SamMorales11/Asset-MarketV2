@@ -13,6 +13,7 @@ import {
   revenueLedger,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/index.js';
+import { Errors, handleError } from '../lib/errors.js';
 import { toAbsoluteUrl, formatAssetUrls } from '../utils/url.js';
 
 export const userRoutes = new Hono();
@@ -57,8 +58,8 @@ userRoutes.get('/me', async (c) => {
       data: { user },
     });
   } catch (error: any) {
-    console.error('Get /users/me Error:', error);
-    return c.json({ success: false, message: 'Failed to retrieve profile', error: error?.message }, 500);
+    const appError = handleError(error, 'Users/me');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -166,15 +167,8 @@ userRoutes.get('/me/assets', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error in GET /users/me/assets:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Gagal mengambil daftar aset yang Anda miliki',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Users/me/assets');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -355,15 +349,8 @@ userRoutes.get('/me/transactions', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error in GET /users/me/transactions:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Gagal mengambil riwayat transaksi',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Users/me/transactions');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -494,15 +481,8 @@ userRoutes.get('/me/transactions/:id', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error in GET /users/me/transactions/:id:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Gagal mengambil rincian transaksi',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Users/me/transactions/detail');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -629,15 +609,8 @@ userRoutes.get('/me/revenue', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error in GET /users/me/revenue:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Gagal mengambil rincian pendapatan revenue',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Users/me/revenue');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -723,15 +696,8 @@ userRoutes.post('/me/payout/request', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error requesting payout:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Gagal memproses penarikan saldo',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Users/me/payout');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -782,15 +748,8 @@ userRoutes.put('/me/bank-account', async (c) => {
       data: updatedUser,
     });
   } catch (error: any) {
-    console.error('Error updating bank account:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Gagal memperbarui rekening bank',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Users/me/bank-account');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -978,11 +937,8 @@ userRoutes.get('/me/dashboard', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching dashboard summary:', error);
-    return c.json(
-      { success: false, message: 'Gagal memuat dashboard summary', error: error?.message },
-      500
-    );
+    const appError = handleError(error, 'Users/me/dashboard');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1025,11 +981,8 @@ userRoutes.get('/me/payment-settings', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching payment settings:', error);
-    return c.json(
-      { success: false, message: 'Gagal memuat pengaturan pembayaran', error: error?.message },
-      500
-    );
+    const appError = handleError(error, 'Users/me/payment-settings/get');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1092,11 +1045,8 @@ const savePaymentSettingsHandler = async (c: any) => {
       },
     });
   } catch (error: any) {
-    console.error('Error saving payment settings:', error);
-    return c.json(
-      { success: false, message: 'Gagal menyimpan pengaturan pembayaran', error: error?.message },
-      500
-    );
+    const appError = handleError(error, 'Users/me/payment-settings/save');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 };
 
@@ -1136,11 +1086,8 @@ userRoutes.delete('/me/payment-settings', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error deleting payment settings:', error);
-    return c.json(
-      { success: false, message: 'Gagal menghapus rekening pembayaran', error: error?.message },
-      500
-    );
+    const appError = handleError(error, 'Users/me/payment-settings/delete');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1180,11 +1127,8 @@ userRoutes.get('/me/profile', async (c) => {
       data: userRecord,
     });
   } catch (error: any) {
-    console.error('Error fetching profile:', error);
-    return c.json(
-      { success: false, message: 'Gagal memuat profil', error: error?.message },
-      500
-    );
+    const appError = handleError(error, 'Users/me/profile/get');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -1248,11 +1192,8 @@ userRoutes.put('/me/profile', async (c) => {
       data: updatedUser,
     });
   } catch (error: any) {
-    console.error('Error updating profile:', error);
-    return c.json(
-      { success: false, message: 'Gagal memperbarui profil', error: error?.message },
-      500
-    );
+    const appError = handleError(error, 'Users/me/profile/update');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 

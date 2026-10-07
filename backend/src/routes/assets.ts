@@ -6,6 +6,7 @@ import { db } from '../db/index.js';
 import { assets, assetFiles, categories, users } from '../db/schema.js';
 import { authMiddleware } from '../middleware/index.js';
 import { verifyAccessToken } from '../lib/index.js';
+import { Errors, handleError, logError } from '../lib/errors.js';
 import { storage } from '../storage/index.js';
 import { validateUploadedFile, mapAssetTypeToCategory } from '../utils/fileValidation.js';
 import { assetFileService } from '../services/assetFileService.js';
@@ -164,15 +165,12 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
       201
     );
   } catch (error: any) {
-    console.error('Asset Upload Error:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to upload asset. Please verify input data and file format.',
-        error: error?.message,
-      },
-      500
-    );
+    // Cleanup uploaded thumbnail if asset file processing fails
+    if (thumbnailUrl) {
+      logError(`Cleanup orphan thumbnail: ${thumbnailUrl}`, 'Asset/upload');
+    }
+    const appError = handleError(error, 'Asset/upload');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -262,15 +260,8 @@ async function handleAssetModerationSubmission(c: any) {
       },
     });
   } catch (error: any) {
-    console.error('Error submitting asset for moderation:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Gagal mengajukan moderasi aset. Silakan coba beberapa saat lagi.',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Asset/moderation');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 }
 
@@ -333,15 +324,8 @@ assetRoutes.get('/my', authMiddleware, async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching my assets:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to retrieve your listings',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Asset/my');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -477,15 +461,8 @@ assetRoutes.get('/', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching marketplace assets:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to load marketplace assets',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Asset/list');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -523,18 +500,12 @@ assetRoutes.get('/:id/download', authMiddleware, async (c) => {
     }
     return c.body(download.buffer as any, 200, headers);
   } catch (error: any) {
-    console.error('Asset Download Error:', error);
+    logError(error, 'Asset/download');
     const isNotFound = error?.message?.includes('File not found') || error?.message?.includes('tidak ditemukan');
-    return c.json(
-      {
-        success: false,
-        message: isNotFound
-          ? 'Berkas fisik aset tidak ditemukan di server penyimpanan. Silakan hubungi tim dukungan.'
-          : 'Gagal mengunduh berkas deliverable',
-        error: error?.message,
-      },
-      isNotFound ? 404 : 500
-    );
+    const appError = isNotFound
+      ? Errors.notFound('File not found on storage server. Please contact support.')
+      : Errors.internal('Failed to download asset file');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -572,18 +543,12 @@ assetRoutes.get('/files/:fileId/download', authMiddleware, async (c) => {
     }
     return c.body(download.buffer as any, 200, headers);
   } catch (error: any) {
-    console.error('File Download Error:', error);
+    logError(error, 'Asset/fileDownload');
     const isNotFound = error?.message?.includes('File not found') || error?.message?.includes('tidak ditemukan');
-    return c.json(
-      {
-        success: false,
-        message: isNotFound
-          ? 'Berkas fisik aset tidak ditemukan di server penyimpanan. Silakan hubungi tim dukungan.'
-          : 'Gagal mengunduh file aset',
-        error: error?.message,
-      },
-      isNotFound ? 404 : 500
-    );
+    const appError = isNotFound
+      ? Errors.notFound('File not found on storage server. Please contact support.')
+      : Errors.internal('Failed to download file');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -621,8 +586,8 @@ assetRoutes.post('/:id/claim', authMiddleware, async (c) => {
 
     return c.redirect(`/api/purchases/claim/${asset.id}`, 307);
   } catch (error: any) {
-    console.error('Error claiming free asset:', error);
-    return c.json({ success: false, message: 'Gagal mengklaim aset gratis', error: error?.message }, 500);
+    const appError = handleError(error, 'Asset/claim');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
 
@@ -753,14 +718,7 @@ assetRoutes.get('/:identifier', async (c) => {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching asset detail:', error);
-    return c.json(
-      {
-        success: false,
-        message: 'Failed to retrieve asset details',
-        error: error?.message,
-      },
-      500
-    );
+    const appError = handleError(error, 'Asset/detail');
+    return c.json(appError.toJSON(), appError.statusCode);
   }
 });
