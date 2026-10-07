@@ -539,8 +539,8 @@ async function runTestSuite() {
                     'Buyer Flow',
                     'Buyer submits manual transfer proof (status: processing)',
                     (paymentConfirmRes.status === 200 || paymentConfirmRes.status === 201) &&
-                        paymentConfirmJson.success &&
-                        typeof confirmationId === 'string',
+                    paymentConfirmJson.success &&
+                    typeof confirmationId === 'string',
                     `Confirmation ID: ${confirmationId}, Status: ${paymentConfirmJson.data?.status}`
                 );
             } else {
@@ -566,9 +566,9 @@ async function runTestSuite() {
                     'Buyer Flow',
                     'Admin verifies manual payment (status updated to PAID)',
                     verifyPaymentRes.status === 200 &&
-                        verifyPaymentJson.success &&
-                        verifyPaymentJson.data?.transactionStatus === 'paid' &&
-                        actualTxStatus === 'paid',
+                    verifyPaymentJson.success &&
+                    verifyPaymentJson.data?.transactionStatus === 'paid' &&
+                    actualTxStatus === 'paid',
                     `Payment status: ${actualTxStatus}`
                 );
             } else {
@@ -823,7 +823,7 @@ async function runTestSuite() {
                         const proofPath = path.resolve(rootUploads, 'payments', proofName);
                         try {
                             if (fs.existsSync(proofPath)) fs.unlinkSync(proofPath);
-                        } catch {}
+                        } catch { }
                     }
                 }
 
@@ -848,7 +848,7 @@ async function runTestSuite() {
                         const fullPath = path.resolve(rootUploads, f.fileKey);
                         try {
                             if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
-                        } catch {}
+                        } catch { }
                     }
                 }
                 await db.delete(assetFiles).where(inArray(assetFiles.assetId, createdAssetIds));
@@ -864,7 +864,7 @@ async function runTestSuite() {
                         const fullPath = path.resolve(rootUploads, 'thumbnails', thumbName);
                         try {
                             if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
-                        } catch {}
+                        } catch { }
                     }
                 }
                 await db.delete(assets).where(inArray(assets.id, createdAssetIds));

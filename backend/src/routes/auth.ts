@@ -11,7 +11,7 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
 } from '../lib/index.js';
-import { Errors, handleError, isConstraintError, logError } from '../lib/errors.js';
+import { handleError, isConstraintError, logError } from '../lib/errors.js';
 import { authMiddleware } from '../middleware/index.js';
 import type { SafeUser } from '../types/index.js';
 
@@ -148,7 +148,7 @@ authRoutes.post('/register', async (c) => {
     }
 
     const appError = handleError(error, 'Auth/register');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -241,7 +241,7 @@ authRoutes.post('/login', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Auth/login');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -329,7 +329,7 @@ authRoutes.post('/refresh', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Auth/refresh');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -391,6 +391,6 @@ authRoutes.get('/me', authMiddleware, async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Auth/me');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });

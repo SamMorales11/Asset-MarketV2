@@ -15,7 +15,7 @@ import {
 } from '../db/schema.js';
 import { authMiddleware, requireRole } from '../middleware/index.js';
 import { hashPassword } from '../lib/index.js';
-import { Errors, handleError } from '../lib/errors.js';
+import { handleError } from '../lib/errors.js';
 import { toAbsoluteUrl, formatAssetUrls } from '../utils/url.js';
 
 export const adminRoutes = new Hono();
@@ -95,7 +95,7 @@ adminRoutes.get('/assets/pending', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/pending-assets');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -163,7 +163,7 @@ adminRoutes.post('/assets/:id/approve', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/approve-asset');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -239,7 +239,7 @@ adminRoutes.post('/assets/:id/reject', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/reject-asset');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -344,7 +344,7 @@ adminRoutes.get('/payments/pending', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/pending-payments');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -494,7 +494,7 @@ adminRoutes.post('/payments/:id/verify', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/verify-payment');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -585,7 +585,7 @@ adminRoutes.post('/payments/:id/reject', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/reject-payment');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -740,7 +740,7 @@ adminRoutes.get('/dashboard', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/dashboard');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -864,7 +864,7 @@ adminRoutes.get('/users', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/list-users');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -990,7 +990,7 @@ adminRoutes.get('/users/:id', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/user-detail');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1078,7 +1078,7 @@ adminRoutes.put('/users/:id', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/update-user');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1145,7 +1145,7 @@ adminRoutes.post('/users/:id/toggle-status', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/toggle-user-status');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1261,7 +1261,7 @@ adminRoutes.get('/revenue/users', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/revenue-per-user');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1347,7 +1347,7 @@ adminRoutes.get('/revenue/users/:id', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/user-revenue-detail');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1412,7 +1412,7 @@ adminRoutes.get('/admins', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/list-admins');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1514,7 +1514,7 @@ adminRoutes.post('/admins', async (c) => {
     );
   } catch (error: any) {
     const appError = handleError(error, 'Admin/create-admin');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1579,7 +1579,7 @@ adminRoutes.get('/admins/:id', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/admin-detail');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1705,7 +1705,7 @@ adminRoutes.put('/admins/:id', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/update-admin');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1795,7 +1795,7 @@ adminRoutes.delete('/admins/:id', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/delete-admin');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1853,7 +1853,7 @@ adminRoutes.post('/admins/:id/reactivate', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Admin/reactivate-admin');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 

@@ -13,7 +13,7 @@ import {
   revenueLedger,
 } from '../db/schema.js';
 import { authMiddleware } from '../middleware/index.js';
-import { Errors, handleError } from '../lib/errors.js';
+import { handleError } from '../lib/errors.js';
 import { toAbsoluteUrl, formatAssetUrls } from '../utils/url.js';
 
 export const userRoutes = new Hono();
@@ -59,7 +59,7 @@ userRoutes.get('/me', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -168,7 +168,7 @@ userRoutes.get('/me/assets', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/assets');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -350,7 +350,7 @@ userRoutes.get('/me/transactions', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/transactions');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -482,7 +482,7 @@ userRoutes.get('/me/transactions/:id', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/transactions/detail');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -610,7 +610,7 @@ userRoutes.get('/me/revenue', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/revenue');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -697,7 +697,7 @@ userRoutes.post('/me/payout/request', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/payout');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -749,7 +749,7 @@ userRoutes.put('/me/bank-account', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/bank-account');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -938,7 +938,7 @@ userRoutes.get('/me/dashboard', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/dashboard');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -982,7 +982,7 @@ userRoutes.get('/me/payment-settings', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/payment-settings/get');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1046,7 +1046,7 @@ const savePaymentSettingsHandler = async (c: any) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/payment-settings/save');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 };
 
@@ -1087,7 +1087,7 @@ userRoutes.delete('/me/payment-settings', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/payment-settings/delete');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1128,7 +1128,7 @@ userRoutes.get('/me/profile', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/profile/get');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -1193,7 +1193,7 @@ userRoutes.put('/me/profile', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Users/me/profile/update');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { eq, and, isNull, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { categories, assets } from '../db/schema.js';
-import { Errors, handleError } from '../lib/errors.js';
+import { handleError } from '../lib/errors.js';
 
 export const categoryRoutes = new Hono();
 

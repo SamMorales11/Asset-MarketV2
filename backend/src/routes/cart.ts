@@ -3,7 +3,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { carts, cartItems, assets, categories, users, transactions, transactionItems } from '../db/schema.js';
 import { authMiddleware } from '../middleware/index.js';
-import { Errors, handleError } from '../lib/errors.js';
+import { handleError } from '../lib/errors.js';
 import { formatAssetUrls } from '../utils/url.js';
 
 export const cartRoutes = new Hono();
@@ -122,7 +122,7 @@ cartRoutes.get('/', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Cart/get');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -259,7 +259,7 @@ const handleAddToCart = async (c: any) => {
     );
   } catch (error: any) {
     const appError = handleError(error, 'Cart/add');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 };
 
@@ -316,7 +316,7 @@ cartRoutes.delete('/items/:id', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Cart/remove');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -339,6 +339,6 @@ cartRoutes.delete('/clear', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Cart/clear');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });

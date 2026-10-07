@@ -37,6 +37,8 @@ function createSlug(title: string): string {
  * Handle multipart asset upload (thumbnail + archive file + metadata)
  */
 assetRoutes.post('/upload', authMiddleware, async (c) => {
+  let thumbnailUrl: string | undefined;
+
   try {
     const sessionUser = c.get('user');
     const formData = await c.req.formData();
@@ -170,7 +172,7 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
       logError(`Cleanup orphan thumbnail: ${thumbnailUrl}`, 'Asset/upload');
     }
     const appError = handleError(error, 'Asset/upload');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -261,7 +263,7 @@ async function handleAssetModerationSubmission(c: any) {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Asset/moderation');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 }
 
@@ -325,7 +327,7 @@ assetRoutes.get('/my', authMiddleware, async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Asset/my');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -462,7 +464,7 @@ assetRoutes.get('/', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Asset/list');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -505,7 +507,7 @@ assetRoutes.get('/:id/download', authMiddleware, async (c) => {
     const appError = isNotFound
       ? Errors.notFound('File not found on storage server. Please contact support.')
       : Errors.internal('Failed to download asset file');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -548,7 +550,7 @@ assetRoutes.get('/files/:fileId/download', authMiddleware, async (c) => {
     const appError = isNotFound
       ? Errors.notFound('File not found on storage server. Please contact support.')
       : Errors.internal('Failed to download file');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -587,7 +589,7 @@ assetRoutes.post('/:id/claim', authMiddleware, async (c) => {
     return c.redirect(`/api/purchases/claim/${asset.id}`, 307);
   } catch (error: any) {
     const appError = handleError(error, 'Asset/claim');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
 
@@ -719,6 +721,6 @@ assetRoutes.get('/:identifier', async (c) => {
     });
   } catch (error: any) {
     const appError = handleError(error, 'Asset/detail');
-    return c.json(appError.toJSON(), appError.statusCode);
+    return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
