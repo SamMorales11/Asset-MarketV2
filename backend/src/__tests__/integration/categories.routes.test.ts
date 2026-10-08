@@ -6,7 +6,7 @@ describe('Categories API Routes (/api/categories)', () => {
     const res = await app.request('/api/categories');
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.success).toBe(true);
     expect(Array.isArray(body.data.categories)).toBe(true);
     expect(body.data.categories.length).toBeGreaterThan(0);

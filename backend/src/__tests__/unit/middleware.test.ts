@@ -186,7 +186,7 @@ describe('Middleware & Role-Based Access Control (RBAC)', () => {
         userId: 'usr_seller',
         email: 'seller@example.com',
         name: 'Seller User',
-        role: 'seller',
+        role: 'user',
       });
 
       const res = await app.request('/seller-only', {

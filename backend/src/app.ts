@@ -158,17 +158,20 @@ app.route('/cart', cartRoutes);
 app.route('/users', userRoutes);
 app.route('/', transactionRoutes);
 
-app.notFound((c) => {
-  return c.json({ success: false, message: 'Endpoint Not Found' }, 404);
-});
+import { handleError } from './lib/errors.js';
 
-app.onError((err, c) => {
-  console.error('Unhandled Application Error:', err);
+app.notFound((c) => {
   return c.json(
     {
       success: false,
-      message: err.message || 'Internal Server Error',
+      message: `Endpoint ${c.req.method} ${c.req.path} not found`,
+      code: 'NOT_FOUND',
     },
-    500
+    404
   );
+});
+
+app.onError((err, c) => {
+  const appError = handleError(err, 'App/Unhandled');
+  return c.json(appError.toJSON(), appError.statusCode as any);
 });

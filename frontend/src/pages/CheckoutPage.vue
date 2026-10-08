@@ -152,7 +152,7 @@ function handleFileSelect(event: Event) {
 }
 
 async function submitConfirmation() {
-  if (!checkoutData.value) return;
+  if (!checkoutData.value || isSubmittingProof.value) return;
 
   confirmError.value = null;
   confirmSuccess.value = null;
@@ -232,6 +232,13 @@ async function submitConfirmation() {
         {{ initError || 'Unable to create an invoice for this checkout session.' }}
       </p>
       <div class="flex items-center justify-center gap-3">
+        <button
+          type="button"
+          @click="initializeOrder"
+          class="rounded-xl border border-primary/50 bg-primary/20 px-5 py-2.5 text-xs font-semibold text-primary hover:bg-primary/30 transition"
+        >
+          Coba Lagi
+        </button>
         <router-link
           to="/cart"
           class="rounded-xl border border-border bg-elevated px-5 py-2.5 text-xs font-semibold text-text-primary hover:border-border-hover transition"

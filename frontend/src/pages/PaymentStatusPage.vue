@@ -141,7 +141,7 @@ function handleFileSelect(event: Event) {
 }
 
 async function handleReuploadProof() {
-  if (!detail.value) return;
+  if (!detail.value || isSubmittingProof.value) return;
 
   submitError.value = null;
   submitSuccess.value = null;
@@ -223,12 +223,21 @@ async function handleReuploadProof() {
       <p class="max-w-md mx-auto text-xs text-text-secondary mb-6 leading-relaxed">
         {{ errorMessage }}
       </p>
-      <router-link
-        to="/explore"
-        class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs font-semibold text-white hover:bg-primary-hover transition"
-      >
-        <span>Jelajahi Katalog Aset</span>
-      </router-link>
+      <div class="flex items-center justify-center gap-3">
+        <button
+          type="button"
+          @click="loadTransactionDetail"
+          class="inline-flex items-center gap-2 rounded-xl border border-border bg-elevated px-5 py-2.5 text-xs font-semibold text-text-primary hover:border-border-hover transition"
+        >
+          <span>Coba Lagi</span>
+        </button>
+        <router-link
+          to="/explore"
+          class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-xs font-semibold text-white hover:bg-primary-hover transition"
+        >
+          <span>Jelajahi Katalog Aset</span>
+        </router-link>
+      </div>
     </div>
 
     <!-- MAIN STATUS VIEW -->

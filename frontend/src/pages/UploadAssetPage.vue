@@ -42,6 +42,9 @@ const thumbnailFile = ref<File | null>(null);
 const thumbnailPreview = ref<string | null>(null);
 const assetFile = ref<File | null>(null);
 
+// Validation & Error state
+const fieldErrors = reactive<Record<string, string>>({});
+
 // Upload progress & states
 const isSubmitting = ref(false);
 const uploadProgress = ref(0);
@@ -82,13 +85,15 @@ function handleThumbnailSelect(event: Event) {
   const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
     const file = target.files[0];
-    if (file.size > 10 * 1024 * 1024) {
-      errorMessage.value = 'Thumbnail must not exceed 10MB.';
+    if (file.size > 15 * 1024 * 1024) {
+      errorMessage.value = 'Thumbnail must not exceed 15MB.';
+      fieldErrors.thumbnail = 'Ukuran thumbnail maksimal 15MB.';
       return;
     }
     thumbnailFile.value = file;
     thumbnailPreview.value = URL.createObjectURL(file);
     errorMessage.value = null;
+    delete fieldErrors.thumbnail;
   }
 }
 
@@ -96,12 +101,14 @@ function handleAssetFileSelect(event: Event) {
   const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
     const file = target.files[0];
-    if (file.size > 250 * 1024 * 1024) {
-      errorMessage.value = 'Main asset file must not exceed 250MB.';
+    if (file.size > 500 * 1024 * 1024) {
+      errorMessage.value = 'Main asset file must not exceed 500MB.';
+      fieldErrors.file = 'Ukuran berkas utama maksimal 500MB.';
       return;
     }
     assetFile.value = file;
     errorMessage.value = null;
+    delete fieldErrors.file;
   }
 }
 
@@ -118,24 +125,44 @@ function removeTag(index: number) {
 }
 
 async function handleSubmit() {
-  if (!form.title.trim()) {
-    errorMessage.value = 'Asset title is required.';
-    toast.error('Validasi Gagal', errorMessage.value);
-    return;
+  if (isSubmitting.value) return;
+
+  // Reset previous errors
+  Object.keys(fieldErrors).forEach((k) => delete fieldErrors[k]);
+  let hasErrors = false;
+
+  if (!form.title.trim() || form.title.trim().length < 3) {
+    fieldErrors.title = 'Asset title must be at least 3 characters.';
+    hasErrors = true;
   }
-  if (!form.description.trim()) {
-    errorMessage.value = 'Asset description is required.';
-    toast.error('Validasi Gagal', errorMessage.value);
-    return;
+  if (!form.description.trim() || form.description.trim().length < 10) {
+    fieldErrors.description = 'Asset description must be at least 10 characters.';
+    hasErrors = true;
+  }
+  if (!form.categoryId) {
+    fieldErrors.category = 'Please select a valid category.';
+    hasErrors = true;
+  }
+  if (form.price < 0) {
+    fieldErrors.price = 'Price must be a non-negative number.';
+    hasErrors = true;
+  }
+  if (form.discountPrice !== null && form.discountPrice >= form.price) {
+    fieldErrors.discountPrice = 'Discount price must be lower than base price.';
+    hasErrors = true;
   }
   if (!thumbnailFile.value) {
-    errorMessage.value = 'Please select a cover thumbnail image.';
-    toast.error('Validasi Gagal', errorMessage.value);
-    return;
+    fieldErrors.thumbnail = 'Please select a cover thumbnail image.';
+    hasErrors = true;
   }
   if (!assetFile.value) {
-    errorMessage.value = 'Please select the main digital asset archive (.zip).';
-    toast.error('Validasi Gagal', errorMessage.value);
+    fieldErrors.file = 'Please select the main digital asset archive (.zip).';
+    hasErrors = true;
+  }
+
+  if (hasErrors) {
+    errorMessage.value = 'Please correct the highlighted fields before submitting.';
+    toast.error('Validasi Gagal', 'Harap lengkapi semua kolom yang wajib diisi.');
     return;
   }
 
@@ -145,19 +172,19 @@ async function handleSubmit() {
 
   try {
     const data = new FormData();
-    data.append('title', form.title);
-    data.append('shortDescription', form.shortDescription);
-    data.append('description', form.description);
+    data.append('title', form.title.trim());
+    data.append('shortDescription', form.shortDescription.trim());
+    data.append('description', form.description.trim());
     data.append('categoryId', form.categoryId);
     data.append('assetType', form.assetType);
     data.append('price', String(form.price));
     if (form.discountPrice) {
       data.append('discountPrice', String(form.discountPrice));
     }
-    data.append('demoUrl', form.demoUrl);
+    data.append('demoUrl', form.demoUrl.trim());
     data.append('tags', JSON.stringify(form.tags));
-    data.append('thumbnail', thumbnailFile.value);
-    data.append('file', assetFile.value);
+    data.append('thumbnail', thumbnailFile.value!);
+    data.append('file', assetFile.value!);
 
     const asset = await assetService.uploadAsset(data, (percent) => {
       uploadProgress.value = percent;
@@ -171,7 +198,18 @@ async function handleSubmit() {
       `Aset "${form.title}" telah masuk ke antrean kurasi. Tim kurator akan meninjau kelayakan aset Anda dalam 1x24 jam.`
     );
   } catch (err: any) {
-    const errorText = err?.response?.data?.message || err?.message || 'Failed to upload asset. Please try again.';
+    const isTimeoutOrNetwork =
+      err?.code === 'NETWORK_ERROR' ||
+      err?.code === 'TIMEOUT' ||
+      err?.message?.toLowerCase().includes('timeout') ||
+      err?.message?.toLowerCase().includes('koneksi');
+
+    let errorText = err?.message || 'Failed to upload asset. Please try again.';
+    if (isTimeoutOrNetwork) {
+      errorText =
+        'Koneksi terputus atau batas waktu unggah terlampaui. Berkas dan isian formulir Anda tetap tersimpan dengan aman — silakan coba kembali.';
+    }
+
     errorMessage.value = errorText;
     toast.error('Gagal Mengunggah Aset', errorText);
   } finally {
@@ -279,8 +317,12 @@ function resetForm() {
               type="text"
               required
               placeholder="e.g. Apex SaaS UI Kit & Dashboard Template"
-              class="w-full rounded-xl border border-border bg-background py-2.5 px-4 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+              :class="[
+                'w-full rounded-xl border bg-background py-2.5 px-4 text-xs text-text-primary placeholder-text-secondary focus:outline-none focus:ring-1 transition',
+                fieldErrors.title ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary focus:ring-primary'
+              ]"
             />
+            <p v-if="fieldErrors.title" class="mt-1 text-[11px] text-red-400 font-medium">{{ fieldErrors.title }}</p>
           </div>
 
           <!-- Type & Category Selection Grid -->
@@ -301,13 +343,17 @@ function resetForm() {
               <label class="block text-xs font-medium text-text-secondary mb-1.5">Category *</label>
               <select
                 v-model="form.categoryId"
-                class="w-full rounded-xl border border-border bg-background py-2.5 px-4 text-xs text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                :class="[
+                  'w-full rounded-xl border bg-background py-2.5 px-4 text-xs text-text-primary focus:outline-none focus:ring-1 transition',
+                  fieldErrors.category ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary focus:ring-primary'
+                ]"
                 :disabled="isCategoriesLoading"
               >
                 <option v-for="cat in categories" :key="cat.id" :value="cat.id">
                   {{ cat.name }}
                 </option>
               </select>
+              <p v-if="fieldErrors.category" class="mt-1 text-[11px] text-red-400 font-medium">{{ fieldErrors.category }}</p>
             </div>
           </div>
 
@@ -330,8 +376,12 @@ function resetForm() {
               rows="5"
               required
               placeholder="Describe your asset features, tech stack, installation steps, and license scope..."
-              class="w-full rounded-xl border border-border bg-background py-2.5 px-4 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+              :class="[
+                'w-full rounded-xl border bg-background py-2.5 px-4 text-xs text-text-primary placeholder-text-secondary focus:outline-none focus:ring-1 transition',
+                fieldErrors.description ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary focus:ring-primary'
+              ]"
             ></textarea>
+            <p v-if="fieldErrors.description" class="mt-1 text-[11px] text-red-400 font-medium">{{ fieldErrors.description }}</p>
           </div>
 
           <!-- Live Preview Demo URL -->
@@ -477,6 +527,7 @@ function resetForm() {
             <p v-if="thumbnailFile" class="mt-2 text-[11px] text-text-secondary font-mono">
               Selected: {{ thumbnailFile.name }} ({{ formatFileSize(thumbnailFile.size) }})
             </p>
+            <p v-if="fieldErrors.thumbnail" class="mt-1 text-[11px] text-red-400 font-medium">{{ fieldErrors.thumbnail }}</p>
           </div>
 
           <!-- Main Asset Archive Dropzone -->
@@ -509,6 +560,7 @@ function resetForm() {
                 <p class="text-[11px] text-text-secondary">Contain source files, documentation, and assets (.zip)</p>
               </div>
             </div>
+            <p v-if="fieldErrors.file" class="mt-1 text-[11px] text-red-400 font-medium">{{ fieldErrors.file }}</p>
           </div>
         </div>
 
@@ -535,7 +587,7 @@ function resetForm() {
         >
           <Loader2 v-if="isSubmitting" class="h-5 w-5 animate-spin" />
           <UploadCloud v-else class="h-5 w-5" />
-          <span>{{ isSubmitting ? `Submitting (${uploadProgress}%)...` : 'Submit for Admin Moderation' }}</span>
+          <span>{{ isSubmitting ? `Submitting (${uploadProgress}%)...` : errorMessage ? 'Coba Unggah Lagi' : 'Submit for Admin Moderation' }}</span>
         </button>
       </form>
     </div>

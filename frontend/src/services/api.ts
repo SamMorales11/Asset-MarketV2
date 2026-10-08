@@ -15,50 +15,84 @@ export interface ApiError {
   success: false;
   message: string;
   code?: string;
-  errors?: Array<{ field: string; message: string }>;
+  statusCode?: number;
+  errors?: Array<{ field?: string; message: string }>;
   originalError?: string;
 }
 
-function normalizeError(error: AxiosError | unknown): ApiError {
+export function normalizeError(error: AxiosError | unknown): ApiError {
   // Axios error with response
   if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError<{ success?: boolean; message?: string; code?: string; error?: any }>;
+    const axiosError = error as AxiosError<{
+      success?: boolean;
+      message?: string;
+      code?: string;
+      error?: any;
+      errors?: any;
+    }>;
+    const status = axiosError.response?.status;
 
     // Server returned an error response
     if (axiosError.response?.data) {
       const data = axiosError.response.data;
+      let userFriendlyMsg = data?.message || axiosError.message;
+
+      // Provide human-friendly fallback if backend message is missing or raw server error
+      if (!userFriendlyMsg || userFriendlyMsg === 'Internal Server Error') {
+        if (status === 401) userFriendlyMsg = 'Sesi login telah berakhir. Silakan masuk kembali.';
+        else if (status === 403) userFriendlyMsg = 'Anda tidak memiliki hak akses untuk tindakan ini.';
+        else if (status === 404) userFriendlyMsg = 'Data atau sumber daya tidak ditemukan.';
+        else if (status === 409) userFriendlyMsg = 'Terjadi konflik data atau tindakan sudah diproses sebelumnya.';
+        else if (status === 413) userFriendlyMsg = 'Ukuran berkas melebihi batas yang diizinkan.';
+        else if (status === 415) userFriendlyMsg = 'Format berkas tidak didukung.';
+        else if (status === 422) userFriendlyMsg = 'Data yang dikirimkan tidak valid.';
+        else if (status === 429) userFriendlyMsg = 'Terlalu banyak permintaan. Silakan tunggu sejenak.';
+        else if (status === 503) userFriendlyMsg = 'Layanan server sedang sibuk. Silakan coba sesaat lagi.';
+        else userFriendlyMsg = 'Terjadi kendala pada server. Silakan coba beberapa saat lagi.';
+      }
+
+      const fieldErrors = Array.isArray(data?.error)
+        ? data.error
+        : Array.isArray(data?.errors)
+        ? data.errors
+        : undefined;
+
       return {
         success: false,
-        message: data?.message || axiosError.message || 'Terjadi kesalahan server',
-        code: data?.code,
-        errors: data?.error,
+        message: userFriendlyMsg,
+        code: data?.code || `HTTP_${status || 'ERROR'}`,
+        statusCode: status,
+        errors: fieldErrors,
       };
     }
 
-    // Network error
+    // Network error (offline, DNS failure, connection reset)
     if (axiosError.message === 'Network Error' || !axiosError.response) {
       return {
         success: false,
-        message: 'Koneksi terputus. Periksa koneksi internet Anda.',
+        message: 'Koneksi terputus atau server tidak merespons. Periksa koneksi internet Anda.',
         code: 'NETWORK_ERROR',
+        statusCode: 0,
       };
     }
 
     // Request timeout
-    if (axiosError.code === 'ECONNABORTED') {
+    if (axiosError.code === 'ECONNABORTED' || axiosError.message?.toLowerCase().includes('timeout')) {
       return {
         success: false,
-        message: 'Request timeout. Silakan coba lagi.',
+        message: 'Waktu permintaan habis (timeout). Silakan periksa jaringan Anda dan coba lagi.',
         code: 'TIMEOUT',
+        statusCode: 408,
       };
     }
   }
 
-  // Unknown error
+  // Unknown non-Axios error
   return {
     success: false,
-    message: 'Terjadi kesalahan yang tidak terduga',
+    message: error instanceof Error ? error.message : 'Terjadi kesalahan yang tidak terduga',
     code: 'UNKNOWN_ERROR',
+    statusCode: 500,
     originalError: error instanceof Error ? error.message : String(error),
   };
 }

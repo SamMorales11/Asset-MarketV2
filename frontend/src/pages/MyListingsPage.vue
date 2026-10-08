@@ -99,6 +99,20 @@ async function handleSubmitForModeration(item: Asset) {
       err?.response?.data?.message ||
       err?.message ||
       'Gagal mengajukan moderasi aset. Silakan periksa koneksi Anda dan coba lagi.';
+
+    // Handle edge case: asset is already pending or approved from another tab/session
+    if (err?.code === 'ASSET_ALREADY_PENDING' || errorMsg.toLowerCase().includes('antrean moderasi')) {
+      item.status = 'pending';
+      item.rejectionReason = null;
+      toast.info('Status Diperbarui', 'Aset ini sudah berada dalam antrean moderasi kurator.');
+      return;
+    }
+    if (err?.code === 'ASSET_ALREADY_APPROVED' || errorMsg.toLowerCase().includes('sudah disetujui')) {
+      item.status = 'approved';
+      toast.info('Status Diperbarui', 'Aset ini sudah disetujui dan aktif di marketplace.');
+      return;
+    }
+
     actionError.value = {
       assetId: item.id,
       message: errorMsg,

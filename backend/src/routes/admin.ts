@@ -387,8 +387,8 @@ adminRoutes.post('/payments/:id/verify', async (c) => {
     const previousTxStatus = tx.status;
     const verifiedAt = new Date();
 
-    // 1. Update Payment Confirmation status
-    await db
+    // 1. Atomically update Payment Confirmation status
+    const [updatedConf] = await db
       .update(paymentConfirmations)
       .set({
         status: 'verified',
@@ -397,17 +397,41 @@ adminRoutes.post('/payments/:id/verify', async (c) => {
         verifiedAt,
         updatedAt: verifiedAt,
       })
-      .where(eq(paymentConfirmations.id, confirmationId));
+      .where(and(eq(paymentConfirmations.id, confirmationId), eq(paymentConfirmations.status, 'pending')))
+      .returning();
 
-    // 2. Update Transaction status to 'paid' (Buyer now owns these assets in My Assets)
-    await db
+    if (!updatedConf) {
+      return c.json(
+        {
+          success: false,
+          message: 'Payment confirmation is no longer pending or has already been verified/rejected.',
+          code: 'PAYMENT_STATE_CONFLICT',
+        },
+        409
+      );
+    }
+
+    // 2. Atomically update Transaction status to 'paid'
+    const [updatedTx] = await db
       .update(transactions)
       .set({
         status: 'paid',
         paidAt: verifiedAt,
         updatedAt: verifiedAt,
       })
-      .where(eq(transactions.id, tx.id));
+      .where(and(eq(transactions.id, tx.id), or(eq(transactions.status, 'pending'), eq(transactions.status, 'processing'))))
+      .returning();
+
+    if (!updatedTx) {
+      return c.json(
+        {
+          success: false,
+          message: 'Transaction is already settled or no longer eligible for payment verification.',
+          code: 'TRANSACTION_STATE_CONFLICT',
+        },
+        409
+      );
+    }
 
     // 3. Process Revenue Share (60/40 Split Model) & Double-Entry Ledger Recording
     const items = await db
@@ -539,8 +563,8 @@ adminRoutes.post('/payments/:id/reject', async (c) => {
 
     const verifiedAt = new Date();
 
-    // 1. Update Payment Confirmation status to rejected
-    await db
+    // 1. Atomically update Payment Confirmation status to rejected
+    const [updatedConf] = await db
       .update(paymentConfirmations)
       .set({
         status: 'rejected',
@@ -549,7 +573,19 @@ adminRoutes.post('/payments/:id/reject', async (c) => {
         verifiedAt,
         updatedAt: verifiedAt,
       })
-      .where(eq(paymentConfirmations.id, confirmationId));
+      .where(and(eq(paymentConfirmations.id, confirmationId), eq(paymentConfirmations.status, 'pending')))
+      .returning();
+
+    if (!updatedConf) {
+      return c.json(
+        {
+          success: false,
+          message: 'Payment confirmation is no longer pending review or has already been processed.',
+          code: 'PAYMENT_STATE_CONFLICT',
+        },
+        409
+      );
+    }
 
     // 2. Set Transaction back to 'pending' so user can review and re-upload valid proof
     if (tx) {

@@ -86,6 +86,8 @@ function generateInvoiceNumber(): string {
  * Initialize checkout process either from user's active Cart or direct "Buy Now"
  */
 transactionRoutes.post('/checkout', async (c) => {
+  let createdTxId: string | null = null;
+
   try {
     const sessionUser = c.get('user');
     const body = await c.req.json();
@@ -103,7 +105,7 @@ transactionRoutes.post('/checkout', async (c) => {
 
     if (source === 'buy_now') {
       if (!singleAssetId) {
-        return c.json({ success: false, message: 'Asset ID is required for direct Buy Now' }, 400);
+        return c.json({ success: false, message: 'Asset ID is required for direct Buy Now', code: 'INVALID_INPUT' }, 400);
       }
 
       const [asset] = await db
@@ -113,18 +115,18 @@ transactionRoutes.post('/checkout', async (c) => {
         .limit(1);
 
       if (!asset) {
-        return c.json({ success: false, message: 'Asset not found or no longer available' }, 404);
+        return c.json({ success: false, message: 'Asset not found or no longer available', code: 'ASSET_NOT_FOUND' }, 404);
       }
 
       if (asset.status !== 'approved') {
         return c.json(
-          { success: false, message: 'This asset is pending review and cannot be purchased' },
+          { success: false, message: `This asset is ${asset.status} and cannot be purchased`, code: 'ASSET_NOT_APPROVED' },
           400
         );
       }
 
       if (asset.sellerId === sessionUser.userId) {
-        return c.json({ success: false, message: 'You cannot purchase your own asset' }, 400);
+        return c.json({ success: false, message: 'You cannot purchase your own asset', code: 'CANNOT_BUY_OWN_ASSET' }, 400);
       }
 
       // Check if already purchased
@@ -146,6 +148,7 @@ transactionRoutes.post('/checkout', async (c) => {
           {
             success: false,
             message: 'You have already purchased this asset. You can download it directly from My Assets.',
+            code: 'ALREADY_PURCHASED',
           },
           400
         );
@@ -167,7 +170,7 @@ transactionRoutes.post('/checkout', async (c) => {
         .limit(1);
 
       if (!cart) {
-        return c.json({ success: false, message: 'Cart is empty. Please add items before checkout.' }, 400);
+        return c.json({ success: false, message: 'Cart is empty. Please add items before checkout.', code: 'CART_EMPTY' }, 400);
       }
 
       const currentCartItems = await db
@@ -180,22 +183,27 @@ transactionRoutes.post('/checkout', async (c) => {
             discountPrice: assets.discountPrice,
             sellerId: assets.sellerId,
             status: assets.status,
+            deletedAt: assets.deletedAt,
           },
         })
         .from(cartItems)
         .innerJoin(assets, eq(cartItems.assetId, assets.id))
-        .where(and(eq(cartItems.cartId, cart.id), isNull(assets.deletedAt)));
+        .where(eq(cartItems.cartId, cart.id));
 
       if (currentCartItems.length === 0) {
-        return c.json({ success: false, message: 'Your cart is empty' }, 400);
+        return c.json({ success: false, message: 'Your cart is empty', code: 'CART_EMPTY' }, 400);
       }
 
+      const unavailableItems: string[] = [];
+
       for (const item of currentCartItems) {
+        if (item.asset.deletedAt || item.asset.status !== 'approved') {
+          unavailableItems.push(item.asset.title);
+          continue;
+        }
+
         if (item.asset.sellerId === sessionUser.userId) {
           continue; // exclude own items
-        }
-        if (item.asset.status !== 'approved') {
-          continue; // exclude non-approved
         }
 
         const effectivePrice = item.asset.discountPrice
@@ -210,11 +218,25 @@ transactionRoutes.post('/checkout', async (c) => {
         });
       }
 
+      // Guard: If any item in the cart was deleted or rejected, inform the user cleanly
+      if (unavailableItems.length > 0) {
+        return c.json(
+          {
+            success: false,
+            message: `Some items in your cart are no longer available for purchase: "${unavailableItems.join('", "')}". Please remove them from your cart to proceed.`,
+            code: 'CART_ITEMS_UNAVAILABLE',
+            data: { unavailableItems },
+          },
+          409
+        );
+      }
+
       if (itemsToProcess.length === 0) {
         return c.json(
           {
             success: false,
             message: 'No eligible items found in cart for checkout (items must be approved and cannot be created by yourself)',
+            code: 'NO_ELIGIBLE_ITEMS',
           },
           400
         );
@@ -249,6 +271,7 @@ transactionRoutes.post('/checkout', async (c) => {
     if (!newTx) {
       throw new Error('Failed to create transaction record');
     }
+    createdTxId = newTx.id;
 
     // 2. Insert Transaction Items with strict 60/40 Revenue Share Split Model
     for (const item of itemsToProcess) {
@@ -301,6 +324,14 @@ transactionRoutes.post('/checkout', async (c) => {
       201
     );
   } catch (error: any) {
+    if (createdTxId) {
+      try {
+        await db.delete(transactions).where(eq(transactions.id, createdTxId));
+        logError(`Rolled back incomplete transaction ${createdTxId}`, 'Checkout/rollback');
+      } catch (rollbackErr) {
+        logError(rollbackErr, 'Checkout/rollback-db');
+      }
+    }
     const appError = handleError(error, 'Checkout');
     return c.json(appError.toJSON(), appError.statusCode as any);
   }
@@ -456,7 +487,8 @@ transactionRoutes.get('/transactions/:invoiceNumber', async (c) => {
  * Submit payment confirmation with manual transfer receipt slip image
  */
 transactionRoutes.post('/payments/confirm', async (c) => {
-  let proofImageUrl: string | undefined;
+  let savedProofDiskPath: string | null = null;
+  let finalProofImageUrl: string | null = null;
 
   try {
     const sessionUser = c.get('user');
@@ -472,13 +504,14 @@ transactionRoutes.post('/payments/confirm', async (c) => {
     const proofFile = formData.get('proofImage') as unknown as File | null;
 
     if (!invoiceNumber) {
-      return c.json({ success: false, message: 'Invoice number is required' }, 400);
+      return c.json({ success: false, message: 'Invoice number is required', code: 'INVALID_INPUT' }, 400);
     }
     if (!senderBank || !senderAccountNumber || !senderAccountName || !destinationBank) {
       return c.json(
         {
           success: false,
           message: 'Please provide all bank transfer details (bank name, account number, sender name, destination)',
+          code: 'INVALID_INPUT',
         },
         400
       );
@@ -486,11 +519,11 @@ transactionRoutes.post('/payments/confirm', async (c) => {
 
     const transferAmount = parseFloat(transferAmountStr);
     if (isNaN(transferAmount) || transferAmount <= 0) {
-      return c.json({ success: false, message: 'Please provide a valid transfer amount' }, 400);
+      return c.json({ success: false, message: 'Please provide a valid transfer amount', code: 'INVALID_INPUT' }, 400);
     }
 
     if (!proofFile || !(proofFile instanceof File) || proofFile.size === 0) {
-      return c.json({ success: false, message: 'A photo or screenshot of the transfer receipt is required' }, 400);
+      return c.json({ success: false, message: 'A photo or screenshot of the transfer receipt is required', code: 'INVALID_FILE' }, 400);
     }
 
     if (!ALLOWED_RECEIPT_TYPES.includes(proofFile.type)) {
@@ -498,13 +531,14 @@ transactionRoutes.post('/payments/confirm', async (c) => {
         {
           success: false,
           message: 'Invalid receipt file type. Allowed formats: JPG, PNG, WEBP, GIF, SVG',
+          code: 'INVALID_FILE_TYPE',
         },
         400
       );
     }
 
     if (proofFile.size > MAX_RECEIPT_SIZE) {
-      return c.json({ success: false, message: 'Receipt image exceeds maximum size of 10MB' }, 400);
+      return c.json({ success: false, message: 'Receipt image exceeds maximum size of 10MB', code: 'FILE_TOO_LARGE' }, 400);
     }
 
     // Lookup Transaction
@@ -515,15 +549,49 @@ transactionRoutes.post('/payments/confirm', async (c) => {
       .limit(1);
 
     if (!tx) {
-      return c.json({ success: false, message: 'Invoice not found' }, 404);
+      return c.json({ success: false, message: 'Invoice not found', code: 'NOT_FOUND' }, 404);
     }
 
     if (tx.buyerId !== sessionUser.userId) {
-      return c.json({ success: false, message: 'You are not authorized to submit confirmation for this invoice' }, 403);
+      return c.json({ success: false, message: 'You are not authorized to submit confirmation for this invoice', code: 'FORBIDDEN' }, 403);
+    }
+
+    // Check expiration
+    if (tx.expiresAt && new Date(tx.expiresAt) < new Date() && tx.status === 'pending') {
+      return c.json(
+        {
+          success: false,
+          message: 'This invoice has expired. Please create a new order.',
+          code: 'INVOICE_EXPIRED',
+        },
+        410
+      );
     }
 
     if (tx.status === 'paid') {
-      return c.json({ success: false, message: 'This transaction has already been paid and verified' }, 400);
+      return c.json({ success: false, message: 'This transaction has already been paid and verified', code: 'TRANSACTION_ALREADY_PAID' }, 400);
+    }
+
+    if (tx.status === 'cancelled') {
+      return c.json({ success: false, message: 'This transaction has been cancelled', code: 'TRANSACTION_CANCELLED' }, 400);
+    }
+
+    // Prevent Race Condition: Check if a payment confirmation is already pending review
+    const [existingPending] = await db
+      .select({ id: paymentConfirmations.id })
+      .from(paymentConfirmations)
+      .where(and(eq(paymentConfirmations.transactionId, tx.id), eq(paymentConfirmations.status, 'pending')))
+      .limit(1);
+
+    if (existingPending) {
+      return c.json(
+        {
+          success: false,
+          message: 'A payment confirmation for this invoice is already pending admin review. Please wait for verification.',
+          code: 'PAYMENT_ALREADY_PENDING',
+        },
+        409
+      );
     }
 
     // Save proof image slip to disk
@@ -532,9 +600,10 @@ transactionRoutes.post('/payments/confirm', async (c) => {
     const proofUploadDir = path.resolve(process.cwd(), 'uploads/payments');
     await fs.mkdir(proofUploadDir, { recursive: true });
 
+    savedProofDiskPath = path.join(proofUploadDir, proofFileName);
     const proofBuffer = Buffer.from(await proofFile.arrayBuffer());
-    await fs.writeFile(path.join(proofUploadDir, proofFileName), proofBuffer);
-    const proofImageUrl = `/uploads/payments/${proofFileName}`;
+    await fs.writeFile(savedProofDiskPath, proofBuffer);
+    finalProofImageUrl = `/uploads/payments/${proofFileName}`;
 
     const parsedTransferDate = transferDateStr ? new Date(transferDateStr) : new Date();
 
@@ -550,7 +619,7 @@ transactionRoutes.post('/payments/confirm', async (c) => {
         destinationBank,
         transferAmount: transferAmount.toFixed(2),
         transferDate: parsedTransferDate,
-        proofImageUrl,
+        proofImageUrl: finalProofImageUrl,
         status: 'pending',
       })
       .returning();
@@ -566,7 +635,7 @@ transactionRoutes.post('/payments/confirm', async (c) => {
         status: 'processing',
         updatedAt: new Date(),
       })
-      .where(eq(transactions.id, tx.id));
+      .where(and(eq(transactions.id, tx.id), eq(transactions.status, 'pending')));
 
     return c.json(
       {
@@ -576,15 +645,20 @@ transactionRoutes.post('/payments/confirm', async (c) => {
           confirmationId: confirmation.id,
           invoiceNumber: tx.invoiceNumber,
           status: 'processing',
-          proofImageUrl: toAbsoluteUrl(proofImageUrl),
+          proofImageUrl: toAbsoluteUrl(finalProofImageUrl),
         },
       },
       201
     );
   } catch (error: any) {
     // Cleanup uploaded receipt if confirmation fails
-    if (proofImageUrl) {
-      logError(`Cleanup orphan receipt: ${proofImageUrl}`, 'Payments/confirm');
+    if (savedProofDiskPath) {
+      try {
+        await fs.unlink(savedProofDiskPath);
+        logError(`Cleaned up orphan receipt file: ${savedProofDiskPath}`, 'Payments/confirm');
+      } catch (unlinkErr) {
+        logError(unlinkErr, 'Payments/confirm/unlink');
+      }
     }
     const appError = handleError(error, 'Payments/confirm');
     return c.json(appError.toJSON(), appError.statusCode as any);

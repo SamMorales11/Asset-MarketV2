@@ -1,12 +1,26 @@
 <script setup lang="ts">
-import { ref, onErrorCaptured } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, watch, onErrorCaptured } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 
 const router = useRouter();
+const route = useRoute();
 
+const isDev = import.meta.env.DEV;
 const hasError = ref(false);
 const errorMessage = ref('');
 const errorInfo = ref('');
+
+// Auto-reset error state when navigating to another route
+watch(
+  () => route.fullPath,
+  () => {
+    if (hasError.value) {
+      hasError.value = false;
+      errorMessage.value = '';
+      errorInfo.value = '';
+    }
+  }
+);
 
 const handleError = (err: Error, instance: any, info: string) => {
   console.error('[ErrorBoundary] Caught error:', err);
@@ -26,11 +40,12 @@ const handleRetry = () => {
   hasError.value = false;
   errorMessage.value = '';
   errorInfo.value = '';
-  window.location.reload();
 };
 
 const handleGoHome = () => {
   hasError.value = false;
+  errorMessage.value = '';
+  errorInfo.value = '';
   router.push('/');
 };
 </script>
@@ -52,7 +67,7 @@ const handleGoHome = () => {
       <p class="text-[#888] mb-4">{{ errorMessage }}</p>
 
       <!-- Error Info (dev only) -->
-      <div v-if="errorInfo && import.meta.env.DEV" class="text-xs text-[#666] mb-6 p-3 bg-[#0F0F0F] rounded-lg text-left overflow-auto max-h-32">
+      <div v-if="errorInfo && isDev" class="text-xs text-[#666] mb-6 p-3 bg-[#0F0F0F] rounded-lg text-left overflow-auto max-h-32">
         <code>{{ errorInfo }}</code>
       </div>
 

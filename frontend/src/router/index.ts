@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import HomePage from '../pages/HomePage.vue';
 import { useAuthStore } from '../stores/auth';
+import { useToast } from '../composables/useToast';
 import type { UserRole } from '../types';
 
 declare module 'vue-router' {
@@ -340,4 +341,36 @@ router.afterEach((to) => {
     metaDescription.setAttribute('content', String(to.meta.description));
   }
 });
+
+// Graceful Session Expiration Handler
+if (typeof window !== 'undefined') {
+  let isHandlingSessionExpiry = false;
+
+  window.addEventListener('auth:session-expired', () => {
+    if (isHandlingSessionExpiry) return;
+    isHandlingSessionExpiry = true;
+
+    try {
+      const { toast } = useToast();
+      toast.warning(
+        'Sesi Login Berakhir',
+        'Sesi Anda telah kedaluwarsa. Silakan login kembali untuk melanjutkan tindakan Anda.'
+      );
+    } catch {
+      // Toast fallback if context is unavailable
+    }
+
+    const currentRoute = router.currentRoute.value;
+    if (currentRoute.meta.requiresAuth) {
+      router.push({
+        path: '/login',
+        query: { redirect: currentRoute.fullPath },
+      });
+    }
+
+    setTimeout(() => {
+      isHandlingSessionExpiry = false;
+    }, 3000);
+  });
+}
 

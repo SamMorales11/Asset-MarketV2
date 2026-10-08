@@ -37,7 +37,8 @@ function createSlug(title: string): string {
  * Handle multipart asset upload (thumbnail + archive file + metadata)
  */
 assetRoutes.post('/upload', authMiddleware, async (c) => {
-  let thumbnailUrl: string | undefined;
+  let createdAssetId: string | null = null;
+  let uploadedThumbKey: string | null = null;
 
   try {
     const sessionUser = c.get('user');
@@ -59,40 +60,52 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
 
     // Field Validations
     if (!title || title.length < 3) {
-      return c.json({ success: false, message: 'Title must be at least 3 characters' }, 400);
+      return c.json({ success: false, message: 'Title must be at least 3 characters', code: 'INVALID_INPUT' }, 400);
     }
     if (!description || description.length < 10) {
-      return c.json({ success: false, message: 'Description must be at least 10 characters' }, 400);
+      return c.json({ success: false, message: 'Description must be at least 10 characters', code: 'INVALID_INPUT' }, 400);
     }
     if (!categoryId) {
-      return c.json({ success: false, message: 'Please select a valid category' }, 400);
+      return c.json({ success: false, message: 'Please select a valid category', code: 'INVALID_INPUT' }, 400);
     }
 
     const price = parseFloat(priceStr);
     if (isNaN(price) || price < 0) {
-      return c.json({ success: false, message: 'Price must be a valid non-negative number' }, 400);
+      return c.json({ success: false, message: 'Price must be a valid non-negative number', code: 'INVALID_INPUT' }, 400);
     }
 
     const discountPrice = discountPriceStr ? parseFloat(discountPriceStr) : null;
     if (discountPrice !== null && (isNaN(discountPrice) || discountPrice < 0)) {
-      return c.json({ success: false, message: 'Discount price must be a valid number' }, 400);
+      return c.json({ success: false, message: 'Discount price must be a valid number', code: 'INVALID_INPUT' }, 400);
+    }
+
+    if (discountPrice !== null && discountPrice >= price) {
+      return c.json({ success: false, message: 'Discount price must be lower than original price', code: 'INVALID_INPUT' }, 400);
     }
 
     // Thumbnail Validation
+    if (!thumbnail || !(thumbnail instanceof File) || thumbnail.size === 0) {
+      return c.json({ success: false, message: 'Please select a valid cover thumbnail image.', code: 'INVALID_FILE' }, 400);
+    }
+
     const thumbValidation = validateUploadedFile(thumbnail, 'image', {
       maxSizeBytes: MAX_THUMBNAIL_SIZE,
     });
     if (!thumbValidation.valid) {
-      return c.json({ success: false, message: thumbValidation.error }, 400);
+      return c.json({ success: false, message: thumbValidation.error, code: 'INVALID_FILE_TYPE' }, 400);
     }
 
     // Asset Deliverable Validation
+    if (!assetFile || !(assetFile instanceof File) || assetFile.size === 0) {
+      return c.json({ success: false, message: 'Please select a valid main digital asset file archive.', code: 'INVALID_FILE' }, 400);
+    }
+
     const targetCategory = mapAssetTypeToCategory(assetType);
     const fileValidation = validateUploadedFile(assetFile, targetCategory, {
       maxSizeBytes: MAX_FILE_SIZE,
     });
     if (!fileValidation.valid) {
-      return c.json({ success: false, message: fileValidation.error }, 400);
+      return c.json({ success: false, message: fileValidation.error, code: 'INVALID_FILE_TYPE' }, 400);
     }
 
     // Parse Tags
@@ -106,15 +119,16 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
     }
 
     // 1. Upload Thumbnail via Storage Provider
-    const thumbBuffer = Buffer.from(await thumbnail!.arrayBuffer());
+    const thumbBuffer = Buffer.from(await thumbnail.arrayBuffer());
     const thumbUpload = await storage.upload({
       buffer: thumbBuffer,
-      fileName: thumbnail!.name,
-      mimeType: thumbValidation.mimeType || thumbnail!.type || 'image/jpeg',
+      fileName: thumbnail.name,
+      mimeType: thumbValidation.mimeType || thumbnail.type || 'image/jpeg',
       folder: 'thumbnails',
       isPublic: true,
     });
-    const thumbnailUrl = thumbUpload.publicUrl;
+    uploadedThumbKey = thumbUpload.fileKey;
+    const finalThumbnailUrl = thumbUpload.publicUrl;
 
     // 2. Create Asset Record in Database
     const slug = createSlug(title);
@@ -133,7 +147,7 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
         price: price.toFixed(2),
         discountPrice: discountPrice !== null ? discountPrice.toFixed(2) : null,
         currency: 'IDR',
-        thumbnailUrl,
+        thumbnailUrl: finalThumbnailUrl,
         previewImages: [],
         demoUrl: demoUrl || null,
         tags,
@@ -143,14 +157,15 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
     if (!newAsset) {
       throw new Error('Failed to create asset record in database');
     }
+    createdAssetId = newAsset.id;
 
     // 3. Save Deliverable File & Persist in asset_files table
-    const fileBuffer = Buffer.from(await assetFile!.arrayBuffer());
+    const fileBuffer = Buffer.from(await assetFile.arrayBuffer());
     const { fileRecord } = await assetFileService.saveAssetDeliverable({
       assetId: newAsset.id,
       fileBuffer,
-      fileName: assetFile!.name,
-      mimeType: fileValidation.mimeType || assetFile!.type || 'application/octet-stream',
+      fileName: assetFile.name,
+      mimeType: fileValidation.mimeType || assetFile.type || 'application/octet-stream',
       assetType,
       isMain: true,
     });
@@ -167,10 +182,24 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
       201
     );
   } catch (error: any) {
-    // Cleanup uploaded thumbnail if asset file processing fails
-    if (thumbnailUrl) {
-      logError(`Cleanup orphan thumbnail: ${thumbnailUrl}`, 'Asset/upload');
+    // Transaction Rollback: Clean up created asset and thumbnail if flow failed midway
+    if (createdAssetId) {
+      try {
+        await db.delete(assets).where(eq(assets.id, createdAssetId));
+        logError(`Rolled back asset record ${createdAssetId}`, 'Asset/upload/rollback');
+      } catch (rollbackErr) {
+        logError(rollbackErr, 'Asset/upload/rollback-db');
+      }
     }
+    if (uploadedThumbKey) {
+      try {
+        await storage.delete(uploadedThumbKey);
+        logError(`Rolled back thumbnail storage file ${uploadedThumbKey}`, 'Asset/upload/rollback');
+      } catch (rollbackErr) {
+        logError(rollbackErr, 'Asset/upload/rollback-thumbnail');
+      }
+    }
+
     const appError = handleError(error, 'Asset/upload');
     return c.json(appError.toJSON(), appError.statusCode as any);
   }
@@ -185,7 +214,7 @@ async function handleAssetModerationSubmission(c: any) {
     const assetId = c.req.param('id');
 
     if (!assetId) {
-      return c.json({ success: false, message: 'ID aset wajib disertakan.' }, 400);
+      return c.json({ success: false, message: 'ID aset wajib disertakan.', code: 'INVALID_INPUT' }, 400);
     }
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assetId);
@@ -200,7 +229,7 @@ async function handleAssetModerationSubmission(c: any) {
       .limit(1);
 
     if (!existing) {
-      return c.json({ success: false, message: 'Aset tidak ditemukan.' }, 404);
+      return c.json({ success: false, message: 'Aset tidak ditemukan.', code: 'NOT_FOUND' }, 404);
     }
 
     // Permission check: only the seller who uploaded the asset (or admin) can submit it
@@ -213,6 +242,7 @@ async function handleAssetModerationSubmission(c: any) {
         {
           success: false,
           message: 'Akses ditolak: Anda hanya dapat mengajukan aset milik Anda sendiri.',
+          code: 'FORBIDDEN',
         },
         403
       );
@@ -224,6 +254,7 @@ async function handleAssetModerationSubmission(c: any) {
         {
           success: false,
           message: 'Aset ini sudah disetujui dan telah aktif di marketplace.',
+          code: 'ASSET_ALREADY_APPROVED',
         },
         400
       );
@@ -234,12 +265,13 @@ async function handleAssetModerationSubmission(c: any) {
         {
           success: false,
           message: 'Aset ini sudah berada dalam antrean moderasi administrator.',
+          code: 'ASSET_ALREADY_PENDING',
         },
-        400
+        409
       );
     }
 
-    // Update status to 'pending', clear rejectionReason, and update timestamp
+    // Atomic update status to 'pending' to prevent race conditions on double submit
     const [updatedAsset] = await db
       .update(assets)
       .set({
@@ -247,11 +279,18 @@ async function handleAssetModerationSubmission(c: any) {
         rejectionReason: null,
         updatedAt: new Date(),
       })
-      .where(eq(assets.id, existing.id))
+      .where(and(eq(assets.id, existing.id), eq(assets.status, existing.status)))
       .returning();
 
     if (!updatedAsset) {
-      throw new Error('Gagal memperbarui status aset di database');
+      return c.json(
+        {
+          success: false,
+          message: 'Aset ini telah diperbarui oleh permintaan lain atau statusnya telah berubah.',
+          code: 'ASSET_STATE_CONFLICT',
+        },
+        409
+      );
     }
 
     return c.json({

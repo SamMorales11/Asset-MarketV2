@@ -28,6 +28,7 @@ export async function authMiddleware(c: Context, next: Next) {
       {
         success: false,
         message: 'Unauthorized: Missing or malformed Authorization token',
+        code: 'MISSING_TOKEN',
       },
       401
     );
@@ -40,6 +41,7 @@ export async function authMiddleware(c: Context, next: Next) {
       {
         success: false,
         message: 'Unauthorized: Invalid or expired access token',
+        code: 'TOKEN_EXPIRED',
       },
       401
     );
@@ -62,6 +64,7 @@ export function requireRole(...allowedRoles: UserRole[]) {
         {
           success: false,
           message: 'Unauthorized: Authentication required',
+          code: 'UNAUTHORIZED',
         },
         401
       );
@@ -72,6 +75,7 @@ export function requireRole(...allowedRoles: UserRole[]) {
         {
           success: false,
           message: `Forbidden: Requires one of [${allowedRoles.join(', ')}] role`,
+          code: 'FORBIDDEN',
         },
         403
       );

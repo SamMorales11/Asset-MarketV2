@@ -3,7 +3,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { carts, cartItems, assets, categories, users, transactions, transactionItems } from '../db/schema.js';
 import { authMiddleware } from '../middleware/index.js';
-import { handleError } from '../lib/errors.js';
+import { handleError, isConstraintError } from '../lib/errors.js';
 import { formatAssetUrls } from '../utils/url.js';
 
 export const cartRoutes = new Hono();
@@ -258,6 +258,18 @@ const handleAddToCart = async (c: any) => {
       201
     );
   } catch (error: any) {
+    if (isConstraintError(error)) {
+      return c.json(
+        {
+          success: true,
+          message: 'Item is already in your cart',
+          data: {
+            alreadyInCart: true,
+          },
+        },
+        200
+      );
+    }
     const appError = handleError(error, 'Cart/add');
     return c.json(appError.toJSON(), appError.statusCode as any);
   }
