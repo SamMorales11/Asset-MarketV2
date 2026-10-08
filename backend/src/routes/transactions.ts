@@ -230,65 +230,58 @@ transactionRoutes.post('/checkout', async (c) => {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const invoiceNumber = generateInvoiceNumber();
 
-    // Use transaction to ensure atomicity - all or nothing
-    const [tx] = await db.transaction(async (tx) => {
-      // 1. Create Transaction Header
-      const [newTx] = await tx
-        .insert(transactions)
-        .values({
-          invoiceNumber,
-          buyerId: sessionUser.userId,
-          subtotal: subtotal.toFixed(2),
-          taxAmount: taxAmount.toFixed(2),
-          totalAmount: totalAmount.toFixed(2),
-          status: 'pending',
-          paymentMethod: 'manual_transfer',
-          expiresAt,
-          notes: `Manual Bank Transfer Order (${itemsToProcess.length} item(s))`,
-        })
-        .returning();
+    // 1. Create Transaction Header
+    const [newTx] = await db
+      .insert(transactions)
+      .values({
+        invoiceNumber,
+        buyerId: sessionUser.userId,
+        subtotal: subtotal.toFixed(2),
+        taxAmount: taxAmount.toFixed(2),
+        totalAmount: totalAmount.toFixed(2),
+        status: 'pending',
+        paymentMethod: 'manual_transfer',
+        expiresAt,
+        notes: `Manual Bank Transfer Order (${itemsToProcess.length} item(s))`,
+      })
+      .returning();
 
-      if (!newTx) {
-        throw new Error('Failed to create transaction record');
-      }
-
-      // 2. Insert Transaction Items with strict 60/40 Revenue Share Split Model
-      for (const item of itemsToProcess) {
-        const sellerAmount = Number((item.price * 0.6).toFixed(2));
-        const platformAmount = Number((item.price * 0.4).toFixed(2));
-
-        await tx.insert(transactionItems).values({
-          transactionId: newTx.id,
-          assetId: item.assetId,
-          sellerId: item.sellerId,
-          price: item.price.toFixed(2),
-          sellerRatePercent: '60.00',
-          platformRatePercent: '40.00',
-          sellerAmount: sellerAmount.toFixed(2),
-          platformAmount: platformAmount.toFixed(2),
-          licenseType: 'standard',
-        });
-      }
-
-      // 3. If checkout source was cart, empty the user's cart items
-      if (source === 'cart') {
-        const [userCart] = await tx
-          .select({ id: carts.id })
-          .from(carts)
-          .where(eq(carts.userId, sessionUser.userId))
-          .limit(1);
-
-        if (userCart) {
-          await tx.delete(cartItems).where(eq(cartItems.cartId, userCart.id));
-        }
-      }
-
-      return [newTx];
-    });
-
-    if (!tx) {
+    if (!newTx) {
       throw new Error('Failed to create transaction record');
     }
+
+    // 2. Insert Transaction Items with strict 60/40 Revenue Share Split Model
+    for (const item of itemsToProcess) {
+      const sellerAmount = Number((item.price * 0.6).toFixed(2));
+      const platformAmount = Number((item.price * 0.4).toFixed(2));
+
+      await db.insert(transactionItems).values({
+        transactionId: newTx.id,
+        assetId: item.assetId,
+        sellerId: item.sellerId,
+        price: item.price.toFixed(2),
+        sellerRatePercent: '60.00',
+        platformRatePercent: '40.00',
+        sellerAmount: sellerAmount.toFixed(2),
+        platformAmount: platformAmount.toFixed(2),
+        licenseType: 'standard',
+      });
+    }
+
+    // 3. If checkout source was cart, empty the user's cart items
+    if (source === 'cart') {
+      const [userCart] = await db
+        .select({ id: carts.id })
+        .from(carts)
+        .where(eq(carts.userId, sessionUser.userId))
+        .limit(1);
+
+      if (userCart) {
+        await db.delete(cartItems).where(eq(cartItems.cartId, userCart.id));
+      }
+    }
+
+    const tx = newTx;
 
     return c.json(
       {
