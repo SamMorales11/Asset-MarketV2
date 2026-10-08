@@ -19,7 +19,7 @@ export const useCartStore = defineStore('cart', () => {
   const error = ref<string | null>(null);
 
   const authStore = useAuthStore();
-  const toast = useToast();
+  const { toast } = useToast();
 
   const itemCount = computed(() => items.value.length);
   const subtotal = computed(() =>
