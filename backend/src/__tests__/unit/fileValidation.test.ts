@@ -119,5 +119,31 @@ describe('File Validation Utility Functions', () => {
       expect(result.valid).toBe(false);
       expect(result.error).toContain('Invalid file extension ".png"');
     });
+
+    it('rejects path traversal and null bytes in file names', () => {
+      const traversal = validateUploadedFile(
+        { name: '../../etc/passwd.png', size: 1024, type: 'image/png' },
+        'image'
+      );
+      expect(traversal.valid).toBe(false);
+      expect(traversal.error).toContain('invalid characters or path traversal');
+
+      const nullByte = validateUploadedFile(
+        { name: 'test\0malicious.png', size: 1024, type: 'image/png' },
+        'image'
+      );
+      expect(nullByte.valid).toBe(false);
+      expect(nullByte.error).toContain('invalid characters or path traversal');
+    });
+
+    it('rejects double extension spoofing attempts', () => {
+      const result = validateUploadedFile(
+        { name: 'receipt.php.png', size: 1024, type: 'image/png' },
+        'image'
+      );
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('Double file extension detected');
+    });
   });
 });
+

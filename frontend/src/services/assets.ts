@@ -16,8 +16,11 @@ export interface AssetFilterParams {
   category?: string;
   type?: string;
   q?: string;
+  search?: string;
   minPrice?: number;
   maxPrice?: number;
+  pricing?: 'all' | 'free' | 'paid';
+  isFree?: boolean;
   sort?: 'newest' | 'price_asc' | 'price_desc' | 'popular' | 'rating';
   page?: number;
   limit?: number;

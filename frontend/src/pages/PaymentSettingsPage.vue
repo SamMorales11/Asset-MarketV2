@@ -35,6 +35,12 @@ const bankAccountHolder = ref('');
 const bankBranch = ref('');
 const bankSwiftOrCode = ref('');
 
+const fieldErrors = ref<{
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
+}>({});
+
 const presetBanks = [
   'Bank Central Asia (BCA)',
   'Bank Mandiri',
@@ -58,6 +64,61 @@ const formattedCardNumber = computed(() => {
   const clean = bankAccountNumber.value.replace(/\s+/g, '');
   if (!clean) return '•••• •••• •••• ••••';
   return clean.replace(/(\d{4})/g, '$1 ').trim();
+});
+
+function validateBank(): boolean {
+  if (selectedPresetBank.value === 'Lainnya') {
+    const val = customBankName.value.trim();
+    if (!val) {
+      fieldErrors.value.bankName = 'Nama bank kustom wajib diisi.';
+      return false;
+    }
+    if (val.length < 2) {
+      fieldErrors.value.bankName = 'Nama bank kustom minimal 2 karakter.';
+      return false;
+    }
+  }
+  delete fieldErrors.value.bankName;
+  return true;
+}
+
+function validateAccountNumber(): boolean {
+  const val = bankAccountNumber.value.trim();
+  if (!val) {
+    fieldErrors.value.bankAccountNumber = 'Nomor rekening bank wajib diisi.';
+    return false;
+  }
+  if (val.length < 4) {
+    fieldErrors.value.bankAccountNumber = 'Nomor rekening minimal 4 digit.';
+    return false;
+  }
+  if (!/^[0-9A-Za-z\- ]+$/.test(val)) {
+    fieldErrors.value.bankAccountNumber = 'Nomor rekening hanya boleh berisi angka, huruf, dan tanda hubung.';
+    return false;
+  }
+  delete fieldErrors.value.bankAccountNumber;
+  return true;
+}
+
+function validateAccountHolder(): boolean {
+  const val = bankAccountHolder.value.trim();
+  if (!val) {
+    fieldErrors.value.bankAccountHolder = 'Nama pemilik rekening wajib diisi.';
+    return false;
+  }
+  if (val.length < 2) {
+    fieldErrors.value.bankAccountHolder = 'Nama pemilik rekening minimal 2 karakter.';
+    return false;
+  }
+  delete fieldErrors.value.bankAccountHolder;
+  return true;
+}
+
+const isFormValid = computed(() => {
+  const bankValid = selectedPresetBank.value !== 'Lainnya' || customBankName.value.trim().length >= 2;
+  const numValid = bankAccountNumber.value.trim().length >= 4 && /^[0-9A-Za-z\- ]+$/.test(bankAccountNumber.value.trim());
+  const holderValid = bankAccountHolder.value.trim().length >= 2;
+  return bankValid && numValid && holderValid && !fieldErrors.value.bankName && !fieldErrors.value.bankAccountNumber && !fieldErrors.value.bankAccountHolder;
 });
 
 onMounted(async () => {
@@ -95,21 +156,18 @@ async function loadPaymentSettings() {
 
 async function handleSaveSettings() {
   feedbackMessage.value = null;
+  fieldErrors.value = {};
 
-  const finalBankName = computedBankName.value;
-  if (!finalBankName) {
-    feedbackMessage.value = { type: 'error', text: 'Nama bank wajib diisi.' };
-    return;
-  }
-  if (!bankAccountNumber.value.trim()) {
-    feedbackMessage.value = { type: 'error', text: 'Nomor rekening bank wajib diisi.' };
-    return;
-  }
-  if (!bankAccountHolder.value.trim()) {
-    feedbackMessage.value = { type: 'error', text: 'Nama pemilik rekening wajib diisi.' };
+  const bankOk = validateBank();
+  const numOk = validateAccountNumber();
+  const holderOk = validateAccountHolder();
+
+  if (!bankOk || !numOk || !holderOk) {
+    feedbackMessage.value = { type: 'error', text: 'Silakan perbaiki kesalahan isian formulir rekening di bawah ini.' };
     return;
   }
 
+  const finalBankName = computedBankName.value;
   isSaving.value = true;
   try {
     const updated = await userService.updatePaymentSettings({
@@ -133,6 +191,11 @@ async function handleSaveSettings() {
       text: 'Informasi rekening pembayaran berhasil disimpan dan aktif untuk penarikan saldo.',
     };
   } catch (err: any) {
+    if (err?.fieldErrors) {
+      if (err.fieldErrors.bankName) fieldErrors.value.bankName = err.fieldErrors.bankName[0];
+      if (err.fieldErrors.bankAccountNumber) fieldErrors.value.bankAccountNumber = err.fieldErrors.bankAccountNumber[0];
+      if (err.fieldErrors.bankAccountHolder) fieldErrors.value.bankAccountHolder = err.fieldErrors.bankAccountHolder[0];
+    }
     feedbackMessage.value = {
       type: 'error',
       text: err?.message || 'Gagal menyimpan pengaturan rekening.',
@@ -322,9 +385,19 @@ async function handleDeleteSettings() {
               v-model="customBankName"
               type="text"
               placeholder="Contoh: Bank BJB, Bank Danamon..."
-              class="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-xs text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              class="w-full rounded-xl border bg-background px-4 py-2.5 text-xs text-text-primary transition focus:outline-none focus:ring-1"
+              :class="
+                fieldErrors.bankName
+                  ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500/20'
+                  : 'border-border focus:border-primary focus:ring-primary'
+              "
               required
+              @input="validateBank"
+              @blur="validateBank"
             />
+            <p v-if="fieldErrors.bankName" class="text-[11px] font-medium text-red-400">
+              {{ fieldErrors.bankName }}
+            </p>
           </div>
 
           <!-- 2. Nomor Rekening -->
@@ -337,12 +410,22 @@ async function handleDeleteSettings() {
                 v-model="bankAccountNumber"
                 type="text"
                 placeholder="Contoh: 1234567890"
-                class="w-full rounded-xl border border-border bg-background px-4 py-2.5 pl-10 text-xs font-mono text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                class="w-full rounded-xl border bg-background px-4 py-2.5 pl-10 text-xs font-mono text-text-primary transition focus:outline-none focus:ring-1"
+                :class="
+                  fieldErrors.bankAccountNumber
+                    ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500/20'
+                    : 'border-border focus:border-primary focus:ring-primary'
+                "
                 required
+                @input="validateAccountNumber"
+                @blur="validateAccountNumber"
               />
               <CreditCard class="absolute left-3 top-3 h-4 w-4 text-text-secondary" />
             </div>
-            <p class="text-[10px] text-text-secondary">Masukkan angka nomor rekening tanpa spasi atau tanda hubung.</p>
+            <p v-if="fieldErrors.bankAccountNumber" class="text-[11px] font-medium text-red-400">
+              {{ fieldErrors.bankAccountNumber }}
+            </p>
+            <p v-else class="text-[10px] text-text-secondary">Masukkan angka nomor rekening tanpa spasi atau tanda hubung.</p>
           </div>
 
           <!-- 3. Nama Pemilik Rekening -->
@@ -354,9 +437,19 @@ async function handleDeleteSettings() {
               v-model="bankAccountHolder"
               type="text"
               placeholder="Contoh: John Doe"
-              class="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-xs text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+              class="w-full rounded-xl border bg-background px-4 py-2.5 text-xs text-text-primary uppercase transition focus:outline-none focus:ring-1"
+              :class="
+                fieldErrors.bankAccountHolder
+                  ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500/20'
+                  : 'border-border focus:border-primary focus:ring-primary'
+              "
               required
+              @input="validateAccountHolder"
+              @blur="validateAccountHolder"
             />
+            <p v-if="fieldErrors.bankAccountHolder" class="text-[11px] font-medium text-red-400">
+              {{ fieldErrors.bankAccountHolder }}
+            </p>
           </div>
 
           <!-- 4. Cabang & Kode SWIFT (2 Columns) -->
@@ -390,8 +483,8 @@ async function handleDeleteSettings() {
           <div class="pt-4 border-t border-border flex flex-wrap items-center justify-between gap-4">
             <button
               type="submit"
-              :disabled="isSaving"
-              class="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-semibold text-white shadow-xl shadow-primary/20 hover:bg-primary-hover transition disabled:opacity-50"
+              :disabled="!isFormValid || isSaving"
+              class="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-semibold text-white shadow-xl shadow-primary/20 hover:bg-primary-hover transition disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Loader2 v-if="isSaving" class="h-4 w-4 animate-spin" />
               <Save v-else class="h-4 w-4" />

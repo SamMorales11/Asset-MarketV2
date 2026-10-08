@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Zap,
+  AlertCircle,
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -91,6 +92,23 @@ async function handleClearCart() {
       >
         <Trash2 class="h-3.5 w-3.5" />
         <span>Clear All</span>
+      </button>
+    </div>
+
+    <!-- ERROR STATE WITH RETRY -->
+    <div
+      v-if="cartStore.error && !cartStore.isLoading"
+      class="mb-6 flex items-center justify-between rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-xs font-medium text-red-400 backdrop-blur-md"
+    >
+      <div class="flex items-center gap-2">
+        <AlertCircle class="h-4 w-4 shrink-0 text-red-400" />
+        <span>{{ cartStore.error }}</span>
+      </div>
+      <button
+        class="rounded-lg bg-red-500/20 px-3 py-1 font-semibold text-red-300 hover:bg-red-500/30 transition cursor-pointer"
+        @click="cartStore.fetchCart"
+      >
+        Coba Muat Ulang
       </button>
     </div>
 

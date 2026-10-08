@@ -12,24 +12,13 @@ import {
   verifyRefreshToken,
 } from '../lib/index.js';
 import { handleError, isConstraintError, logError } from '../lib/errors.js';
-import { authMiddleware } from '../middleware/index.js';
+import { authMiddleware, authRateLimiter } from '../middleware/index.js';
+import { registerSchema, loginSchema, validationErrorResponse } from '../lib/validation.js';
 import type { SafeUser } from '../types/index.js';
 
 export const authRoutes = new Hono();
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
-
-// Zod Validation Schemas
-const registerSchema = z.object({
-  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
-  email: z.string().trim().toLowerCase().email('Invalid email address').max(255),
-  password: z.string().min(8, 'Password must be at least 8 characters long').max(100),
-});
-
-const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
-});
 
 function setRefreshCookie(c: any, refreshToken: string) {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -46,23 +35,19 @@ function setRefreshCookie(c: any, refreshToken: string) {
  * POST /auth/register
  * Register a new user account.
  */
-authRoutes.post('/register', async (c) => {
+authRoutes.post('/register', authRateLimiter, async (c) => {
   try {
-    const body = await c.req.json();
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ success: false, message: 'Invalid JSON request body', code: 'MALFORMED_JSON' }, 400);
+    }
+
     const validated = registerSchema.safeParse(body);
 
     if (!validated.success) {
-      return c.json(
-        {
-          success: false,
-          message: 'Validation failed',
-          error: validated.error.issues.map((e) => ({
-            field: e.path.join('.'),
-            message: e.message,
-          })),
-        },
-        400
-      );
+      return validationErrorResponse(c, validated.error, 'Validation failed');
     }
 
     const { name, email, password } = validated.data;
@@ -156,23 +141,19 @@ authRoutes.post('/register', async (c) => {
  * POST /auth/login
  * Authenticate user with email and password.
  */
-authRoutes.post('/login', async (c) => {
+authRoutes.post('/login', authRateLimiter, async (c) => {
   try {
-    const body = await c.req.json();
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ success: false, message: 'Invalid JSON request body', code: 'MALFORMED_JSON' }, 400);
+    }
+
     const validated = loginSchema.safeParse(body);
 
     if (!validated.success) {
-      return c.json(
-        {
-          success: false,
-          message: 'Validation failed',
-          error: validated.error.issues.map((e) => ({
-            field: e.path.join('.'),
-            message: e.message,
-          })),
-        },
-        400
-      );
+      return validationErrorResponse(c, validated.error, 'Validation failed');
     }
 
     const { email, password } = validated.data;

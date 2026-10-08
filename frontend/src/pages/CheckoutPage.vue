@@ -49,6 +49,103 @@ const transferDate = ref(new Date().toISOString().slice(0, 16));
 const proofFile = ref<File | null>(null);
 const proofPreviewUrl = ref<string | null>(null);
 
+const fieldErrors = ref<{
+  senderBank?: string;
+  senderAccountNumber?: string;
+  senderAccountName?: string;
+  proofFile?: string;
+}>({});
+
+const DANGEROUS_EXTENSIONS = ['.exe', '.bat', '.cmd', '.sh', '.php', '.py', '.js', '.vbs', '.msi', '.dll', '.com', '.scr', '.svg'];
+
+function validateSenderBank(): boolean {
+  const val = senderBank.value.trim();
+  if (!val) {
+    fieldErrors.value.senderBank = 'Nama bank pengirim wajib diisi.';
+    return false;
+  }
+  if (val.length < 2) {
+    fieldErrors.value.senderBank = 'Nama bank pengirim minimal 2 karakter.';
+    return false;
+  }
+  delete fieldErrors.value.senderBank;
+  return true;
+}
+
+function validateSenderAccountNumber(): boolean {
+  const val = senderAccountNumber.value.trim();
+  if (!val) {
+    fieldErrors.value.senderAccountNumber = 'Nomor rekening pengirim wajib diisi.';
+    return false;
+  }
+  if (val.length < 4) {
+    fieldErrors.value.senderAccountNumber = 'Nomor rekening minimal 4 digit.';
+    return false;
+  }
+  if (!/^[0-9A-Za-z\- ]+$/.test(val)) {
+    fieldErrors.value.senderAccountNumber = 'Nomor rekening hanya boleh berisi angka, huruf, dan tanda hubung.';
+    return false;
+  }
+  delete fieldErrors.value.senderAccountNumber;
+  return true;
+}
+
+function validateSenderAccountName(): boolean {
+  const val = senderAccountName.value.trim();
+  if (!val) {
+    fieldErrors.value.senderAccountName = 'Nama pemilik rekening pengirim wajib diisi.';
+    return false;
+  }
+  if (val.length < 2) {
+    fieldErrors.value.senderAccountName = 'Nama pemilik rekening minimal 2 karakter.';
+    return false;
+  }
+  delete fieldErrors.value.senderAccountName;
+  return true;
+}
+
+function validateProofFile(file: File | null): boolean {
+  if (!file) {
+    fieldErrors.value.proofFile = 'Silakan unggah foto/screenshot bukti transfer.';
+    return false;
+  }
+  const allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
+  const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+
+  if (DANGEROUS_EXTENSIONS.some((bad) => file.name.toLowerCase().endsWith(bad))) {
+    fieldErrors.value.proofFile = 'Format file tidak diizinkan demi alasan keamanan sistem.';
+    return false;
+  }
+  if (!allowedMime.includes(file.type) && !['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+    fieldErrors.value.proofFile = 'Hanya format gambar JPG, PNG, atau WEBP yang diperbolehkan.';
+    return false;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    fieldErrors.value.proofFile = 'Ukuran berkas bukti transfer tidak boleh melebihi 10MB.';
+    return false;
+  }
+  delete fieldErrors.value.proofFile;
+  return true;
+}
+
+const isFormValid = computed(() => {
+  const isBankValid = senderBank.value.trim().length >= 2;
+  const isNumValid =
+    senderAccountNumber.value.trim().length >= 4 &&
+    /^[0-9A-Za-z\- ]+$/.test(senderAccountNumber.value.trim());
+  const isNameValid = senderAccountName.value.trim().length >= 2;
+  const isFileValid = proofFile.value !== null && !fieldErrors.value.proofFile;
+  return (
+    isBankValid &&
+    isNumValid &&
+    isNameValid &&
+    isFileValid &&
+    !fieldErrors.value.senderBank &&
+    !fieldErrors.value.senderAccountNumber &&
+    !fieldErrors.value.senderAccountName
+  );
+});
+
 const destinationAccounts = computed<DestinationBankAccount[]>(() => {
   return (
     checkoutData.value?.destinationAccounts || [
@@ -146,8 +243,13 @@ function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
     const file = target.files[0];
+    if (!validateProofFile(file)) {
+      target.value = '';
+      return;
+    }
     proofFile.value = file;
     proofPreviewUrl.value = URL.createObjectURL(file);
+    delete fieldErrors.value.proofFile;
   }
 }
 
@@ -156,14 +258,15 @@ async function submitConfirmation() {
 
   confirmError.value = null;
   confirmSuccess.value = null;
+  fieldErrors.value = {};
 
-  if (!senderBank.value || !senderAccountNumber.value || !senderAccountName.value) {
-    confirmError.value = 'Harap lengkapi semua informasi rekening pengirim.';
-    return;
-  }
+  const bankOk = validateSenderBank();
+  const numOk = validateSenderAccountNumber();
+  const nameOk = validateSenderAccountName();
+  const fileOk = validateProofFile(proofFile.value);
 
-  if (!proofFile.value) {
-    confirmError.value = 'Silakan unggah foto/screenshot bukti transfer.';
+  if (!bankOk || !numOk || !nameOk || !fileOk) {
+    confirmError.value = 'Harap periksa dan lengkapi isian formulir konfirmasi bukti transfer.';
     return;
   }
 
@@ -172,13 +275,13 @@ async function submitConfirmation() {
   try {
     const formData = new FormData();
     formData.append('invoiceNumber', checkoutData.value.invoiceNumber);
-    formData.append('senderBank', senderBank.value);
-    formData.append('senderAccountNumber', senderAccountNumber.value);
-    formData.append('senderAccountName', senderAccountName.value);
+    formData.append('senderBank', senderBank.value.trim());
+    formData.append('senderAccountNumber', senderAccountNumber.value.trim());
+    formData.append('senderAccountName', senderAccountName.value.trim());
     formData.append('destinationBank', selectedBank.value);
     formData.append('transferAmount', checkoutData.value.totalAmount.toString());
     formData.append('transferDate', transferDate.value);
-    formData.append('proofImage', proofFile.value);
+    formData.append('proofImage', proofFile.value!);
 
     await transactionService.submitPaymentConfirmation(formData);
 
@@ -188,6 +291,12 @@ async function submitConfirmation() {
     }, 1500);
   } catch (err: any) {
     console.error('Submission failed:', err);
+    if (err?.fieldErrors) {
+      if (err.fieldErrors.senderBank) fieldErrors.value.senderBank = err.fieldErrors.senderBank[0];
+      if (err.fieldErrors.senderAccountNumber) fieldErrors.value.senderAccountNumber = err.fieldErrors.senderAccountNumber[0];
+      if (err.fieldErrors.senderAccountName) fieldErrors.value.senderAccountName = err.fieldErrors.senderAccountName[0];
+      if (err.fieldErrors.proofImage) fieldErrors.value.proofFile = err.fieldErrors.proofImage[0];
+    }
     confirmError.value = err?.message || 'Gagal mengirim konfirmasi pembayaran. Coba lagi.';
   } finally {
     isSubmittingProof.value = false;
@@ -437,21 +546,31 @@ async function submitConfirmation() {
                 <!-- Sender Bank -->
                 <div>
                   <label class="block text-xs font-semibold text-text-secondary mb-1.5">
-                    Bank Pengirim
+                    Bank Pengirim <span class="text-primary">*</span>
                   </label>
                   <input
                     v-model="senderBank"
                     type="text"
                     required
                     placeholder="Contoh: BCA, Mandiri, BNI, Jago..."
-                    class="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                    class="w-full rounded-xl border bg-background px-3.5 py-2.5 text-xs text-text-primary placeholder-text-secondary transition focus:outline-none focus:ring-1"
+                    :class="
+                      fieldErrors.senderBank
+                        ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500/20'
+                        : 'border-border focus:border-primary focus:ring-primary'
+                    "
+                    @input="validateSenderBank"
+                    @blur="validateSenderBank"
                   />
+                  <p v-if="fieldErrors.senderBank" class="text-[11px] font-medium text-red-400 mt-1">
+                    {{ fieldErrors.senderBank }}
+                  </p>
                 </div>
 
                 <!-- Destination Bank Selected -->
                 <div>
                   <label class="block text-xs font-semibold text-text-secondary mb-1.5">
-                    Bank Tujuan Transfer
+                    Bank Tujuan Transfer <span class="text-primary">*</span>
                   </label>
                   <select
                     v-model="selectedBank"
@@ -466,40 +585,65 @@ async function submitConfirmation() {
                 <!-- Sender Account Number -->
                 <div>
                   <label class="block text-xs font-semibold text-text-secondary mb-1.5">
-                    Nomor Rekening Pengirim
+                    Nomor Rekening Pengirim <span class="text-primary">*</span>
                   </label>
                   <input
                     v-model="senderAccountNumber"
                     type="text"
                     required
                     placeholder="Nomor rekening yang Anda gunakan"
-                    class="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                    class="w-full rounded-xl border bg-background px-3.5 py-2.5 text-xs text-text-primary placeholder-text-secondary transition focus:outline-none focus:ring-1"
+                    :class="
+                      fieldErrors.senderAccountNumber
+                        ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500/20'
+                        : 'border-border focus:border-primary focus:ring-primary'
+                    "
+                    @input="validateSenderAccountNumber"
+                    @blur="validateSenderAccountNumber"
                   />
+                  <p v-if="fieldErrors.senderAccountNumber" class="text-[11px] font-medium text-red-400 mt-1">
+                    {{ fieldErrors.senderAccountNumber }}
+                  </p>
                 </div>
 
                 <!-- Sender Account Name -->
                 <div>
                   <label class="block text-xs font-semibold text-text-secondary mb-1.5">
-                    Nama Pemilik Rekening Pengirim
+                    Nama Pemilik Rekening Pengirim <span class="text-primary">*</span>
                   </label>
                   <input
                     v-model="senderAccountName"
                     type="text"
                     required
                     placeholder="Nama lengkap di rekening Anda"
-                    class="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                    class="w-full rounded-xl border bg-background px-3.5 py-2.5 text-xs text-text-primary placeholder-text-secondary transition focus:outline-none focus:ring-1"
+                    :class="
+                      fieldErrors.senderAccountName
+                        ? 'border-red-500/70 focus:border-red-500 focus:ring-red-500/20'
+                        : 'border-border focus:border-primary focus:ring-primary'
+                    "
+                    @input="validateSenderAccountName"
+                    @blur="validateSenderAccountName"
                   />
+                  <p v-if="fieldErrors.senderAccountName" class="text-[11px] font-medium text-red-400 mt-1">
+                    {{ fieldErrors.senderAccountName }}
+                  </p>
                 </div>
               </div>
 
               <!-- Proof Receipt Image Upload -->
               <div>
                 <label class="block text-xs font-semibold text-text-secondary mb-1.5">
-                  Unggah Bukti Transfer (Foto / Screenshot Resi)
+                  Unggah Bukti Transfer (Foto / Screenshot Resi) <span class="text-primary">*</span>
                 </label>
 
                 <div
-                  class="relative rounded-2xl border-2 border-dashed border-border p-6 text-center hover:border-primary transition cursor-pointer bg-background/50"
+                  class="relative rounded-2xl border-2 border-dashed p-6 text-center transition cursor-pointer bg-background/50"
+                  :class="
+                    fieldErrors.proofFile
+                      ? 'border-red-500/60 bg-red-500/5 hover:border-red-500'
+                      : 'border-border hover:border-primary'
+                  "
                   @click="($refs.fileInput as HTMLInputElement).click()"
                 >
                   <input
@@ -531,13 +675,16 @@ async function submitConfirmation() {
                     </p>
                   </div>
                 </div>
+                <p v-if="fieldErrors.proofFile" class="text-[11px] font-medium text-red-400 mt-1">
+                  {{ fieldErrors.proofFile }}
+                </p>
               </div>
 
               <!-- SUBMIT CTA BUTTON with #D93A0F -->
               <button
                 type="submit"
-                :disabled="isSubmittingProof"
-                class="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-xs font-semibold text-white shadow-xl shadow-primary/25 hover:bg-primary-hover transition transform active:scale-[0.98] disabled:opacity-50"
+                :disabled="!isFormValid || isSubmittingProof"
+                class="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-xs font-semibold text-white shadow-xl shadow-primary/25 hover:bg-primary-hover transition transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Loader2 v-if="isSubmittingProof" class="h-4 w-4 animate-spin" />
                 <template v-else>

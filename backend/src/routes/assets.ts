@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import * as crypto from 'crypto';
 import { Readable } from 'stream';
-import { eq, and, or, desc, asc, isNull, ilike, gte, lte, sql, count } from 'drizzle-orm';
+import { eq, and, or, desc, asc, isNull, ilike, gte, lte, gt, sql, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { assets, assetFiles, categories, users } from '../db/schema.js';
 import { authMiddleware } from '../middleware/index.js';
@@ -11,6 +11,12 @@ import { storage } from '../storage/index.js';
 import { validateUploadedFile, mapAssetTypeToCategory } from '../utils/fileValidation.js';
 import { assetFileService } from '../services/assetFileService.js';
 import { formatAssetUrls } from '../utils/url.js';
+import {
+  createAssetMetadataSchema,
+  updateAssetMetadataSchema,
+  assetListQuerySchema,
+  validationErrorResponse,
+} from '../lib/validation.js';
 
 export const assetRoutes = new Hono();
 
@@ -54,34 +60,38 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
     const demoUrl = (formData.get('demoUrl') as string || '').trim();
     const tagsRaw = (formData.get('tags') as string || '').trim();
 
+    // Parse Tags
+    let tags: string[] = [];
+    if (tagsRaw) {
+      try {
+        tags = JSON.parse(tagsRaw);
+      } catch {
+        tags = tagsRaw.split(',').map((t) => t.trim()).filter(Boolean);
+      }
+    }
+
+    // Validate Metadata using Zod Schema
+    const metadataValidation = createAssetMetadataSchema.safeParse({
+      title,
+      shortDescription: shortDescription || null,
+      description,
+      categoryId,
+      assetType,
+      price: priceStr,
+      discountPrice: discountPriceStr || null,
+      demoUrl: demoUrl || null,
+      tags,
+    });
+
+    if (!metadataValidation.success) {
+      return validationErrorResponse(c, metadataValidation.error);
+    }
+
+    const { price, discountPrice } = metadataValidation.data;
+
     // Files
     const thumbnail = formData.get('thumbnail') as unknown as File | null;
     const assetFile = formData.get('file') as unknown as File | null;
-
-    // Field Validations
-    if (!title || title.length < 3) {
-      return c.json({ success: false, message: 'Title must be at least 3 characters', code: 'INVALID_INPUT' }, 400);
-    }
-    if (!description || description.length < 10) {
-      return c.json({ success: false, message: 'Description must be at least 10 characters', code: 'INVALID_INPUT' }, 400);
-    }
-    if (!categoryId) {
-      return c.json({ success: false, message: 'Please select a valid category', code: 'INVALID_INPUT' }, 400);
-    }
-
-    const price = parseFloat(priceStr);
-    if (isNaN(price) || price < 0) {
-      return c.json({ success: false, message: 'Price must be a valid non-negative number', code: 'INVALID_INPUT' }, 400);
-    }
-
-    const discountPrice = discountPriceStr ? parseFloat(discountPriceStr) : null;
-    if (discountPrice !== null && (isNaN(discountPrice) || discountPrice < 0)) {
-      return c.json({ success: false, message: 'Discount price must be a valid number', code: 'INVALID_INPUT' }, 400);
-    }
-
-    if (discountPrice !== null && discountPrice >= price) {
-      return c.json({ success: false, message: 'Discount price must be lower than original price', code: 'INVALID_INPUT' }, 400);
-    }
 
     // Thumbnail Validation
     if (!thumbnail || !(thumbnail instanceof File) || thumbnail.size === 0) {
@@ -106,16 +116,6 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
     });
     if (!fileValidation.valid) {
       return c.json({ success: false, message: fileValidation.error, code: 'INVALID_FILE_TYPE' }, 400);
-    }
-
-    // Parse Tags
-    let tags: string[] = [];
-    if (tagsRaw) {
-      try {
-        tags = JSON.parse(tagsRaw);
-      } catch {
-        tags = tagsRaw.split(',').map((t) => t.trim()).filter(Boolean);
-      }
     }
 
     // 1. Upload Thumbnail via Storage Provider
@@ -204,6 +204,110 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
     return c.json(appError.toJSON(), appError.statusCode as any);
   }
 });
+
+/**
+ * PUT & PATCH /assets/:id
+ * Update existing asset metadata (title, description, price, discountPrice, tags, demoUrl, etc.)
+ */
+const handleUpdateAsset = async (c: any) => {
+  try {
+    const sessionUser = c.get('user');
+    const assetId = c.req.param('id');
+
+    if (!assetId) {
+      return c.json({ success: false, message: 'Asset ID is required', code: 'INVALID_INPUT' }, 400);
+    }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assetId);
+    const idCondition = isUuid
+      ? or(eq(assets.id, assetId), eq(assets.slug, assetId))
+      : eq(assets.slug, assetId);
+
+    const [existing] = await db
+      .select()
+      .from(assets)
+      .where(and(idCondition, isNull(assets.deletedAt)))
+      .limit(1);
+
+    if (!existing) {
+      return c.json({ success: false, message: 'Asset not found', code: 'NOT_FOUND' }, 404);
+    }
+
+    // Permission: Only author or admin can modify asset metadata
+    if (
+      existing.sellerId !== sessionUser.userId &&
+      sessionUser.role !== 'admin' &&
+      sessionUser.role !== 'superadmin'
+    ) {
+      return c.json(
+        { success: false, message: 'Forbidden: You can only edit your own assets', code: 'FORBIDDEN' },
+        403
+      );
+    }
+
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ success: false, message: 'Invalid JSON request body', code: 'MALFORMED_JSON' }, 400);
+    }
+
+    const validated = updateAssetMetadataSchema.safeParse(body);
+    if (!validated.success) {
+      return validationErrorResponse(c, validated.error);
+    }
+
+    const data = validated.data;
+
+    // If categoryId is changing, ensure target category exists
+    if (data.categoryId && data.categoryId !== existing.categoryId) {
+      const [cat] = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(and(eq(categories.id, data.categoryId), isNull(categories.deletedAt)))
+        .limit(1);
+      if (!cat) {
+        return c.json({ success: false, message: 'Specified category does not exist', code: 'INVALID_CATEGORY' }, 400);
+      }
+    }
+
+    const updatePayload: Record<string, any> = {
+      updatedAt: new Date(),
+    };
+
+    if (data.title !== undefined) updatePayload.title = data.title;
+    if (data.shortDescription !== undefined) updatePayload.shortDescription = data.shortDescription;
+    if (data.description !== undefined) updatePayload.description = data.description;
+    if (data.categoryId !== undefined) updatePayload.categoryId = data.categoryId;
+    if (data.assetType !== undefined) updatePayload.assetType = data.assetType;
+    if (data.price !== undefined) updatePayload.price = data.price.toFixed(2);
+    if (data.discountPrice !== undefined) {
+      updatePayload.discountPrice = data.discountPrice !== null ? data.discountPrice.toFixed(2) : null;
+    }
+    if (data.demoUrl !== undefined) updatePayload.demoUrl = data.demoUrl || null;
+    if (data.tags !== undefined) updatePayload.tags = data.tags;
+
+    const [updatedAsset] = await db
+      .update(assets)
+      .set(updatePayload)
+      .where(eq(assets.id, existing.id))
+      .returning();
+
+    return c.json({
+      success: true,
+      message: 'Asset metadata updated successfully',
+      data: {
+        asset: formatAssetUrls(updatedAsset),
+      },
+    });
+  } catch (error: any) {
+    const appError = handleError(error, 'Asset/update');
+    return c.json(appError.toJSON(), appError.statusCode as any);
+  }
+};
+
+assetRoutes.put('/:id', authMiddleware, handleUpdateAsset);
+assetRoutes.patch('/:id', authMiddleware, handleUpdateAsset);
 
 /**
  * Handler for submitting/resubmitting an asset for admin moderation
@@ -376,20 +480,34 @@ assetRoutes.get('/my', authMiddleware, async (c) => {
  */
 assetRoutes.get('/', async (c) => {
   try {
-    const categoryQuery = c.req.query('category');
-    const assetType = c.req.query('type');
-    const search = c.req.query('q');
-    const minPriceStr = c.req.query('minPrice');
-    const maxPriceStr = c.req.query('maxPrice');
-    const sort = c.req.query('sort') || 'newest';
-    const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
-    const limit = Math.max(1, Math.min(50, parseInt(c.req.query('limit') || '9', 10)));
+    const rawQuery = c.req.query();
+    const parsedQuery = assetListQuerySchema.safeParse({
+      ...rawQuery,
+      q: rawQuery.q || rawQuery.search,
+    });
+
+    if (!parsedQuery.success) {
+      return validationErrorResponse(c, parsedQuery.error);
+    }
+
+    const {
+      category: categoryQuery,
+      type: assetType,
+      q: search,
+      minPrice,
+      maxPrice,
+      pricing,
+      isFree,
+      sort,
+      page,
+      limit,
+    } = parsedQuery.data;
     const offset = (page - 1) * limit;
 
     // Base condition: MUST BE APPROVED and NOT DELETED
     const conditions = [eq(assets.status, 'approved'), isNull(assets.deletedAt)];
 
-    if (categoryQuery) {
+    if (categoryQuery && categoryQuery !== 'all') {
       conditions.push(
         or(
           eq(categories.slug, categoryQuery.trim()),
@@ -402,37 +520,43 @@ assetRoutes.get('/', async (c) => {
       conditions.push(eq(assets.assetType, assetType as any));
     }
 
+    // Keyword search across title, description, shortDescription, and tags (jsonb array)
     if (search && search.trim()) {
       const q = `%${search.trim()}%`;
       conditions.push(
         or(
           ilike(assets.title, q),
           ilike(assets.description, q),
-          ilike(assets.shortDescription, q)
+          ilike(assets.shortDescription, q),
+          sql`${assets.tags}::text ILIKE ${q}`
         )!
       );
     }
 
-    if (minPriceStr) {
-      const minP = parseFloat(minPriceStr);
-      if (!isNaN(minP)) {
-        conditions.push(gte(assets.price, minP.toFixed(2)));
-      }
+    // Effective price considers discountPrice if set, otherwise original price
+    const effectivePrice = sql`COALESCE(${assets.discountPrice}, ${assets.price})`;
+
+    if (minPrice !== undefined) {
+      conditions.push(gte(effectivePrice, minPrice.toFixed(2)));
     }
 
-    if (maxPriceStr) {
-      const maxP = parseFloat(maxPriceStr);
-      if (!isNaN(maxP)) {
-        conditions.push(lte(assets.price, maxP.toFixed(2)));
-      }
+    if (maxPrice !== undefined) {
+      conditions.push(lte(effectivePrice, maxPrice.toFixed(2)));
+    }
+
+    // Free vs Paid filtering
+    if (pricing === 'free' || isFree === true) {
+      conditions.push(lte(effectivePrice, '0.00'));
+    } else if (pricing === 'paid' || isFree === false) {
+      conditions.push(gt(effectivePrice, '0.00'));
     }
 
     // Determine Order By clause
     let orderByClause = desc(assets.createdAt);
     if (sort === 'price_asc') {
-      orderByClause = asc(assets.price);
+      orderByClause = asc(effectivePrice);
     } else if (sort === 'price_desc') {
-      orderByClause = desc(assets.price);
+      orderByClause = desc(effectivePrice);
     } else if (sort === 'popular') {
       orderByClause = desc(assets.downloadCount);
     } else if (sort === 'rating') {

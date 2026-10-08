@@ -26,8 +26,83 @@ const form = reactive({
   agreeTerms: false,
 });
 
+const fieldErrors = reactive<Record<string, string>>({
+  name: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  agreeTerms: '',
+});
+
 const showPassword = ref(false);
 const errorMessage = ref<string | null>(null);
+
+function validateName() {
+  if (!form.name.trim()) {
+    fieldErrors.name = 'Full name is required.';
+  } else if (form.name.trim().length < 2) {
+    fieldErrors.name = 'Name must be at least 2 characters.';
+  } else {
+    fieldErrors.name = '';
+  }
+}
+
+function validateEmail() {
+  if (!form.email.trim()) {
+    fieldErrors.email = 'Email address is required.';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    fieldErrors.email = 'Please enter a valid email address.';
+  } else {
+    fieldErrors.email = '';
+  }
+}
+
+function validatePassword() {
+  if (!form.password) {
+    fieldErrors.password = 'Password is required.';
+  } else if (form.password.length < 8) {
+    fieldErrors.password = 'Password must be at least 8 characters.';
+  } else {
+    fieldErrors.password = '';
+  }
+  if (form.confirmPassword) {
+    validateConfirmPassword();
+  }
+}
+
+function validateConfirmPassword() {
+  if (!form.confirmPassword) {
+    fieldErrors.confirmPassword = 'Confirmation password is required.';
+  } else if (form.confirmPassword !== form.password) {
+    fieldErrors.confirmPassword = 'Passwords do not match.';
+  } else {
+    fieldErrors.confirmPassword = '';
+  }
+}
+
+function validateTerms() {
+  if (!form.agreeTerms) {
+    fieldErrors.agreeTerms = 'You must agree to the Terms of Service to continue.';
+  } else {
+    fieldErrors.agreeTerms = '';
+  }
+}
+
+const isFormValid = computed(() => {
+  return (
+    form.name.trim().length >= 2 &&
+    form.email.trim().length > 0 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) &&
+    form.password.length >= 8 &&
+    form.confirmPassword === form.password &&
+    form.agreeTerms &&
+    !fieldErrors.name &&
+    !fieldErrors.email &&
+    !fieldErrors.password &&
+    !fieldErrors.confirmPassword &&
+    !fieldErrors.agreeTerms
+  );
+});
 
 // Password strength calculation
 const passwordStrength = computed(() => {
@@ -48,23 +123,19 @@ const passwordStrengthColor = computed(() => {
 });
 
 async function handleSubmit() {
-  if (!form.name || !form.email || !form.password) {
-    errorMessage.value = 'Please complete all required fields.';
-    return;
-  }
+  validateName();
+  validateEmail();
+  validatePassword();
+  validateConfirmPassword();
+  validateTerms();
 
-  if (form.password.length < 8) {
-    errorMessage.value = 'Password must be at least 8 characters.';
-    return;
-  }
-
-  if (form.password !== form.confirmPassword) {
-    errorMessage.value = 'Passwords do not match.';
-    return;
-  }
-
-  if (!form.agreeTerms) {
-    errorMessage.value = 'Please accept the Terms of Service to continue.';
+  if (
+    fieldErrors.name ||
+    fieldErrors.email ||
+    fieldErrors.password ||
+    fieldErrors.confirmPassword ||
+    fieldErrors.agreeTerms
+  ) {
     return;
   }
 
@@ -72,13 +143,21 @@ async function handleSubmit() {
 
   try {
     await authStore.register({
-      name: form.name,
-      email: form.email,
+      name: form.name.trim(),
+      email: form.email.trim(),
       password: form.password,
     });
 
     router.push('/');
   } catch (err: any) {
+    if (err?.fieldErrors) {
+      if (err.fieldErrors.name) fieldErrors.name = err.fieldErrors.name[0];
+      if (err.fieldErrors.email) fieldErrors.email = err.fieldErrors.email[0];
+      if (err.fieldErrors.password) fieldErrors.password = err.fieldErrors.password[0];
+    }
+    if (err?.message?.toLowerCase().includes('already registered')) {
+      fieldErrors.email = 'This email is already registered. Please sign in instead.';
+    }
     errorMessage.value = err?.message || 'Registration failed. Please try again.';
   }
 }
@@ -125,14 +204,20 @@ async function handleSubmit() {
               <input
                 id="name"
                 v-model="form.name"
+                @input="validateName"
+                @blur="validateName"
                 type="text"
                 required
                 autocomplete="name"
                 placeholder="Alex Morgan"
-                class="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-4 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                class="w-full rounded-xl border bg-background py-2.5 pl-10 pr-4 text-xs text-text-primary placeholder-text-secondary focus:outline-none transition"
+                :class="fieldErrors.name ? 'border-primary ring-1 ring-primary' : 'border-border focus:border-primary focus:ring-1 focus:ring-primary'"
               />
               <User class="absolute left-3.5 top-3 h-4 w-4 text-text-secondary" />
             </div>
+            <p v-if="fieldErrors.name" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.name }}</span>
+            </p>
           </div>
 
           <!-- Email Input -->
@@ -144,14 +229,20 @@ async function handleSubmit() {
               <input
                 id="reg-email"
                 v-model="form.email"
+                @input="validateEmail"
+                @blur="validateEmail"
                 type="email"
                 required
                 autocomplete="email"
                 placeholder="name@example.com"
-                class="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-4 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                class="w-full rounded-xl border bg-background py-2.5 pl-10 pr-4 text-xs text-text-primary placeholder-text-secondary focus:outline-none transition"
+                :class="fieldErrors.email ? 'border-primary ring-1 ring-primary' : 'border-border focus:border-primary focus:ring-1 focus:ring-primary'"
               />
               <Mail class="absolute left-3.5 top-3 h-4 w-4 text-text-secondary" />
             </div>
+            <p v-if="fieldErrors.email" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.email }}</span>
+            </p>
           </div>
 
           <!-- Password Input -->
@@ -163,11 +254,14 @@ async function handleSubmit() {
               <input
                 id="reg-password"
                 v-model="form.password"
+                @input="validatePassword"
+                @blur="validatePassword"
                 :type="showPassword ? 'text' : 'password'"
                 required
                 autocomplete="new-password"
                 placeholder="••••••••"
-                class="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-10 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                class="w-full rounded-xl border bg-background py-2.5 pl-10 pr-10 text-xs text-text-primary placeholder-text-secondary focus:outline-none transition"
+                :class="fieldErrors.password ? 'border-primary ring-1 ring-primary' : 'border-border focus:border-primary focus:ring-1 focus:ring-primary'"
               />
               <Lock class="absolute left-3.5 top-3 h-4 w-4 text-text-secondary" />
               <button
@@ -179,6 +273,9 @@ async function handleSubmit() {
                 <Eye v-else class="h-4 w-4" />
               </button>
             </div>
+            <p v-if="fieldErrors.password" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.password }}</span>
+            </p>
 
             <!-- Password Strength Bar -->
             <div v-if="form.password" class="mt-2 space-y-1">
@@ -201,14 +298,20 @@ async function handleSubmit() {
               <input
                 id="confirm-password"
                 v-model="form.confirmPassword"
+                @input="validateConfirmPassword"
+                @blur="validateConfirmPassword"
                 :type="showPassword ? 'text' : 'password'"
                 required
                 autocomplete="new-password"
                 placeholder="••••••••"
-                class="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-4 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                class="w-full rounded-xl border bg-background py-2.5 pl-10 pr-4 text-xs text-text-primary placeholder-text-secondary focus:outline-none transition"
+                :class="fieldErrors.confirmPassword ? 'border-primary ring-1 ring-primary' : 'border-border focus:border-primary focus:ring-1 focus:ring-primary'"
               />
               <Lock class="absolute left-3.5 top-3 h-4 w-4 text-text-secondary" />
             </div>
+            <p v-if="fieldErrors.confirmPassword" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.confirmPassword }}</span>
+            </p>
           </div>
 
           <!-- Terms Checkbox -->
@@ -216,6 +319,7 @@ async function handleSubmit() {
             <label class="flex items-start gap-2.5 cursor-pointer text-xs text-text-secondary">
               <input
                 v-model="form.agreeTerms"
+                @change="validateTerms"
                 type="checkbox"
                 required
                 class="h-3.5 w-3.5 mt-0.5 rounded border-border bg-background text-primary focus:ring-primary focus:ring-offset-0"
@@ -224,13 +328,16 @@ async function handleSubmit() {
                 I agree to the <a href="#" class="text-secondary hover:underline">Terms of Service</a>, <a href="#" class="text-secondary hover:underline">Privacy Policy</a>, and standard licensing agreements.
               </span>
             </label>
+            <p v-if="fieldErrors.agreeTerms" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.agreeTerms }}</span>
+            </p>
           </div>
 
           <!-- Submit Button -->
           <button
             type="submit"
-            :disabled="authStore.isLoading"
-            class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/25 hover:bg-primary-hover disabled:opacity-50 transition transform active:scale-[0.99]"
+            :disabled="!isFormValid || authStore.isLoading"
+            class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/25 hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition transform active:scale-[0.99]"
           >
             <Loader2 v-if="authStore.isLoading" class="h-4 w-4 animate-spin" />
             <span v-else>Create Account</span>

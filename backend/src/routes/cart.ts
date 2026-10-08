@@ -5,6 +5,7 @@ import { carts, cartItems, assets, categories, users, transactions, transactionI
 import { authMiddleware } from '../middleware/index.js';
 import { handleError, isConstraintError } from '../lib/errors.js';
 import { formatAssetUrls } from '../utils/url.js';
+import { addToCartSchema, validationErrorResponse } from '../lib/validation.js';
 
 export const cartRoutes = new Hono();
 
@@ -132,18 +133,19 @@ cartRoutes.get('/', async (c) => {
 const handleAddToCart = async (c: any) => {
   try {
     const sessionUser = c.get('user');
-    const body = await c.req.json();
-    const assetId = (body.assetId as string || '').trim();
-
-    if (!assetId) {
-      return c.json(
-        {
-          success: false,
-          message: 'Asset ID is required',
-        },
-        400
-      );
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ success: false, message: 'Invalid JSON request body', code: 'MALFORMED_JSON' }, 400);
     }
+
+    const validated = addToCartSchema.safeParse(body);
+    if (!validated.success) {
+      return validationErrorResponse(c, validated.error, 'Asset ID is required');
+    }
+
+    const { assetId } = validated.data;
 
     // Verify asset existence, active state, and approval status
     const [asset] = await db

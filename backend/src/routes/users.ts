@@ -15,6 +15,7 @@ import {
 import { authMiddleware } from '../middleware/index.js';
 import { handleError } from '../lib/errors.js';
 import { toAbsoluteUrl, formatAssetUrls } from '../utils/url.js';
+import { validationErrorResponse } from '../lib/validation.js';
 
 export const userRoutes = new Hono();
 
@@ -1005,14 +1006,7 @@ const savePaymentSettingsHandler = async (c: any) => {
 
     const parsed = paymentSettingsSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json(
-        {
-          success: false,
-          message: parsed.error.issues[0]?.message || 'Data rekening tidak valid',
-          errors: parsed.error.format(),
-        },
-        400
-      );
+      return validationErrorResponse(c, parsed.error);
     }
 
     const [updatedUser] = await db
@@ -1150,14 +1144,7 @@ userRoutes.put('/me/profile', async (c) => {
 
     const parsed = profileSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json(
-        {
-          success: false,
-          message: parsed.error.issues[0]?.message || 'Data profil tidak valid',
-          errors: parsed.error.format(),
-        },
-        400
-      );
+      return validationErrorResponse(c, parsed.error);
     }
 
     const [updatedUser] = await db

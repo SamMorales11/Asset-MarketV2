@@ -20,6 +20,12 @@ import { authMiddleware } from '../middleware/index.js';
 import { Errors, handleError, logError } from '../lib/errors.js';
 import { assetFileService } from '../services/assetFileService.js';
 import { toAbsoluteUrl, formatAssetUrls } from '../utils/url.js';
+import { validateReceiptFile } from '../utils/fileValidation.js';
+import {
+  checkoutSchema,
+  paymentConfirmationMetadataSchema,
+  validationErrorResponse,
+} from '../lib/validation.js';
 
 export const transactionRoutes = new Hono();
 
@@ -29,14 +35,6 @@ transactionRoutes.use('/transactions/*', authMiddleware);
 transactionRoutes.use('/payments/*', authMiddleware);
 transactionRoutes.use('/purchases/*', authMiddleware);
 
-const ALLOWED_RECEIPT_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/svg+xml',
-];
-const MAX_RECEIPT_SIZE = 10 * 1024 * 1024; // 10MB
 
 /**
  * Standard Bank Accounts for Manual Transfer (Asset Market Escrow)
@@ -90,9 +88,19 @@ transactionRoutes.post('/checkout', async (c) => {
 
   try {
     const sessionUser = c.get('user');
-    const body = await c.req.json();
-    const source = (body.source as 'cart' | 'buy_now') || 'cart';
-    const singleAssetId = body.assetId as string | undefined;
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ success: false, message: 'Invalid JSON request body', code: 'MALFORMED_JSON' }, 400);
+    }
+
+    const validated = checkoutSchema.safeParse(body);
+    if (!validated.success) {
+      return validationErrorResponse(c, validated.error);
+    }
+
+    const { source, assetId: singleAssetId } = validated.data;
 
     interface CheckoutItem {
       assetId: string;
@@ -503,42 +511,31 @@ transactionRoutes.post('/payments/confirm', async (c) => {
     const transferDateStr = (formData.get('transferDate') as string || '').trim();
     const proofFile = formData.get('proofImage') as unknown as File | null;
 
-    if (!invoiceNumber) {
-      return c.json({ success: false, message: 'Invoice number is required', code: 'INVALID_INPUT' }, 400);
-    }
-    if (!senderBank || !senderAccountNumber || !senderAccountName || !destinationBank) {
-      return c.json(
-        {
-          success: false,
-          message: 'Please provide all bank transfer details (bank name, account number, sender name, destination)',
-          code: 'INVALID_INPUT',
-        },
-        400
-      );
+    // Validate text inputs using Zod
+    const metadataValidation = paymentConfirmationMetadataSchema.safeParse({
+      invoiceNumber,
+      senderBank,
+      senderAccountNumber,
+      senderAccountName,
+      destinationBank,
+      transferAmount: transferAmountStr,
+      transferDate: transferDateStr,
+    });
+
+    if (!metadataValidation.success) {
+      return validationErrorResponse(c, metadataValidation.error);
     }
 
-    const transferAmount = parseFloat(transferAmountStr);
-    if (isNaN(transferAmount) || transferAmount <= 0) {
-      return c.json({ success: false, message: 'Please provide a valid transfer amount', code: 'INVALID_INPUT' }, 400);
-    }
+    const { transferAmount, transferDate } = metadataValidation.data;
 
+    // Validate receipt slip file using strict file validator
     if (!proofFile || !(proofFile instanceof File) || proofFile.size === 0) {
       return c.json({ success: false, message: 'A photo or screenshot of the transfer receipt is required', code: 'INVALID_FILE' }, 400);
     }
 
-    if (!ALLOWED_RECEIPT_TYPES.includes(proofFile.type)) {
-      return c.json(
-        {
-          success: false,
-          message: 'Invalid receipt file type. Allowed formats: JPG, PNG, WEBP, GIF, SVG',
-          code: 'INVALID_FILE_TYPE',
-        },
-        400
-      );
-    }
-
-    if (proofFile.size > MAX_RECEIPT_SIZE) {
-      return c.json({ success: false, message: 'Receipt image exceeds maximum size of 10MB', code: 'FILE_TOO_LARGE' }, 400);
+    const receiptValidation = validateReceiptFile(proofFile);
+    if (!receiptValidation.valid) {
+      return c.json({ success: false, message: receiptValidation.error, code: 'INVALID_FILE_TYPE' }, 400);
     }
 
     // Lookup Transaction
@@ -594,8 +591,8 @@ transactionRoutes.post('/payments/confirm', async (c) => {
       );
     }
 
-    // Save proof image slip to disk
-    const fileExt = path.extname(proofFile.name) || '.jpg';
+    // Save proof image slip to disk with verified extension
+    const fileExt = receiptValidation.extension || '.jpg';
     const proofFileName = `receipt-${crypto.randomUUID()}${fileExt}`;
     const proofUploadDir = path.resolve(process.cwd(), 'uploads/payments');
     await fs.mkdir(proofUploadDir, { recursive: true });
@@ -605,7 +602,7 @@ transactionRoutes.post('/payments/confirm', async (c) => {
     await fs.writeFile(savedProofDiskPath, proofBuffer);
     finalProofImageUrl = `/uploads/payments/${proofFileName}`;
 
-    const parsedTransferDate = transferDateStr ? new Date(transferDateStr) : new Date();
+    const parsedTransferDate = new Date(transferDate);
 
     // Insert payment confirmation
     const [confirmation] = await db

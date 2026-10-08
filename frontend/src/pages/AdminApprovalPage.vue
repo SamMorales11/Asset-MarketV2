@@ -31,10 +31,12 @@ const activeTab = ref<'assets' | 'payments'>('assets');
 // Asset Moderation Queue
 const pendingAssets = ref<PendingAssetWithFiles[]>([]);
 const isAssetsLoading = ref(true);
+const assetsError = ref<string | null>(null);
 
 // Payment Moderation Queue
 const pendingPayments = ref<AdminPendingPaymentItem[]>([]);
 const isPaymentsLoading = ref(true);
+const paymentsError = ref<string | null>(null);
 
 // Filters for Assets
 const assetSearch = ref('');
@@ -82,6 +84,7 @@ onMounted(async () => {
 
 async function loadPendingAssets() {
   isAssetsLoading.value = true;
+  assetsError.value = null;
   try {
     pendingAssets.value = await assetService.getPendingAssets();
     // Clean up selected IDs that no longer exist
@@ -90,6 +93,7 @@ async function loadPendingAssets() {
     );
   } catch (err: any) {
     console.error('Error loading pending assets:', err);
+    assetsError.value = err?.message || 'Gagal memuat antrean kurasi aset.';
     toast.error('Gagal Memuat Antrean Aset', err?.message);
   } finally {
     isAssetsLoading.value = false;
@@ -98,6 +102,7 @@ async function loadPendingAssets() {
 
 async function loadPendingPayments() {
   isPaymentsLoading.value = true;
+  paymentsError.value = null;
   try {
     pendingPayments.value = await adminPaymentService.getPendingPayments();
     selectedPaymentIds.value = selectedPaymentIds.value.filter((id) =>
@@ -105,6 +110,7 @@ async function loadPendingPayments() {
     );
   } catch (err: any) {
     console.error('Error loading pending payments:', err);
+    paymentsError.value = err?.message || 'Gagal memuat antrean verifikasi transfer.';
     toast.error('Gagal Memuat Antrean Pembayaran', err?.message);
   } finally {
     isPaymentsLoading.value = false;
@@ -683,6 +689,24 @@ async function submitPaymentReject() {
         </div>
       </div>
 
+      <!-- Error State with Retry -->
+      <div
+        v-if="assetsError"
+        class="rounded-3xl border border-red-500/30 bg-red-500/10 p-12 text-center"
+      >
+        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/20 mb-4 text-red-400">
+          <AlertCircle class="h-7 w-7" />
+        </div>
+        <h3 class="font-heading text-xl font-bold text-text-primary mb-2">Gagal Memuat Antrean Aset</h3>
+        <p class="text-xs text-red-400/90 max-w-md mx-auto mb-6">{{ assetsError }}</p>
+        <button
+          class="rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow hover:bg-primary-hover transition"
+          @click="loadPendingAssets"
+        >
+          Coba Muat Ulang
+        </button>
+      </div>
+
       <!-- Empty State -->
       <EmptyState
         v-else-if="pendingAssets.length === 0"
@@ -862,6 +886,24 @@ async function submitPaymentReject() {
             <Skeleton variant="button" width="w-24" height="h-10" rounded="rounded-xl" />
           </div>
         </div>
+      </div>
+
+      <!-- Error State with Retry -->
+      <div
+        v-if="paymentsError"
+        class="rounded-3xl border border-red-500/30 bg-red-500/10 p-12 text-center"
+      >
+        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/20 mb-4 text-red-400">
+          <AlertCircle class="h-7 w-7" />
+        </div>
+        <h3 class="font-heading text-xl font-bold text-text-primary mb-2">Gagal Memuat Antrean Pembayaran</h3>
+        <p class="text-xs text-red-400/90 max-w-md mx-auto mb-6">{{ paymentsError }}</p>
+        <button
+          class="rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow hover:bg-primary-hover transition"
+          @click="loadPendingPayments"
+        >
+          Coba Muat Ulang
+        </button>
       </div>
 
       <!-- Empty State -->

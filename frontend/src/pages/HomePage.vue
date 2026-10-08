@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { assetService } from '../services/assets';
 import AssetCard from '../components/AssetCard.vue';
+import AssetCardSkeleton from '../components/AssetCardSkeleton.vue';
 import type { Asset } from '../types';
 import {
   Sparkles,
@@ -700,8 +701,11 @@ function filterByCategory(type: string) {
           </div>
         </div>
 
-        <!-- Asset Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Asset Grid: Loading Skeleton vs Items -->
+        <div v-if="isLoadingAssets" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <AssetCardSkeleton v-for="n in 6" :key="n" />
+        </div>
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <AssetCard
             v-for="asset in assets"
             :key="asset.id"

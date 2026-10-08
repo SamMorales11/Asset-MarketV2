@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { userService } from '../services/users';
 import { useAuthStore } from '../stores/auth';
 import type { User } from '../types';
@@ -69,13 +69,42 @@ function selectPresetAvatar(url: string) {
   avatarUrl.value = url;
 }
 
-async function handleSaveProfile() {
-  feedbackMessage.value = null;
+const fieldErrors = reactive<Record<string, string>>({
+  name: '',
+  phone: '',
+});
 
-  if (!name.value.trim() || name.value.trim().length < 2) {
-    feedbackMessage.value = { type: 'error', text: 'Nama lengkap minimal 2 karakter.' };
+function validateName() {
+  if (!name.value.trim()) {
+    fieldErrors.name = 'Nama lengkap wajib diisi.';
+  } else if (name.value.trim().length < 2) {
+    fieldErrors.name = 'Nama lengkap minimal 2 karakter.';
+  } else {
+    fieldErrors.name = '';
+  }
+}
+
+function validatePhone() {
+  if (phone.value.trim() && !/^[+0-9\s\-()]{6,30}$/.test(phone.value.trim())) {
+    fieldErrors.phone = 'Format nomor telepon tidak valid (contoh: 081234567890).';
+  } else {
+    fieldErrors.phone = '';
+  }
+}
+
+const isFormValid = computed(() => {
+  return name.value.trim().length >= 2 && !fieldErrors.name && !fieldErrors.phone;
+});
+
+async function handleSaveProfile() {
+  validateName();
+  validatePhone();
+
+  if (fieldErrors.name || fieldErrors.phone) {
     return;
   }
+
+  feedbackMessage.value = null;
 
   isSaving.value = true;
   try {
@@ -99,6 +128,10 @@ async function handleSaveProfile() {
       text: 'Profil akun Anda berhasil diperbarui.',
     };
   } catch (err: any) {
+    if (err?.fieldErrors) {
+      if (err.fieldErrors.name) fieldErrors.name = err.fieldErrors.name[0];
+      if (err.fieldErrors.phone) fieldErrors.phone = err.fieldErrors.phone[0];
+    }
     feedbackMessage.value = {
       type: 'error',
       text: err?.message || 'Gagal menyimpan perubahan profil.',
@@ -258,13 +291,19 @@ async function handleSaveProfile() {
             <div class="relative">
               <input
                 v-model="name"
+                @input="validateName"
+                @blur="validateName"
                 type="text"
                 placeholder="Contoh: Alex Rivers Studio"
-                class="w-full rounded-xl border border-border bg-background px-4 py-2.5 pl-10 text-xs text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                class="w-full rounded-xl border bg-background px-4 py-2.5 pl-10 text-xs text-text-primary focus:outline-none transition"
+                :class="fieldErrors.name ? 'border-primary ring-1 ring-primary' : 'border-border focus:border-primary focus:ring-1 focus:ring-primary'"
                 required
               />
               <UserIcon class="absolute left-3 top-3 h-4 w-4 text-text-secondary" />
             </div>
+            <p v-if="fieldErrors.name" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.name }}</span>
+            </p>
           </div>
 
           <!-- 3. Email (Read-only) -->
@@ -298,13 +337,19 @@ async function handleSaveProfile() {
             <div class="relative">
               <input
                 v-model="phone"
+                @input="validatePhone"
+                @blur="validatePhone"
                 type="tel"
                 placeholder="Contoh: 081234567890"
-                class="w-full rounded-xl border border-border bg-background px-4 py-2.5 pl-10 text-xs font-mono text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                class="w-full rounded-xl border bg-background px-4 py-2.5 pl-10 text-xs font-mono text-text-primary focus:outline-none transition"
+                :class="fieldErrors.phone ? 'border-primary ring-1 ring-primary' : 'border-border focus:border-primary focus:ring-1 focus:ring-primary'"
               />
               <Phone class="absolute left-3 top-3 h-4 w-4 text-text-secondary" />
             </div>
-            <p class="text-[10px] text-text-secondary">Digunakan oleh admin untuk konfirmasi penarikan dana mendesak.</p>
+            <p v-if="fieldErrors.phone" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.phone }}</span>
+            </p>
+            <p v-else class="text-[10px] text-text-secondary">Digunakan oleh admin untuk konfirmasi penarikan dana mendesak.</p>
           </div>
 
           <!-- 5. Bio / Creator Statement -->
@@ -333,8 +378,8 @@ async function handleSaveProfile() {
           <div class="pt-4 border-t border-border flex items-center justify-end">
             <button
               type="submit"
-              :disabled="isSaving"
-              class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-semibold text-white shadow-xl shadow-primary/20 hover:bg-primary-hover transition disabled:opacity-50"
+              :disabled="!isFormValid || isSaving"
+              class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-semibold text-white shadow-xl shadow-primary/20 hover:bg-primary-hover transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Loader2 v-if="isSaving" class="h-4 w-4 animate-spin" />
               <Save v-else class="h-4 w-4" />

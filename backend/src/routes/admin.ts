@@ -17,6 +17,7 @@ import { authMiddleware, requireRole } from '../middleware/index.js';
 import { hashPassword } from '../lib/index.js';
 import { handleError } from '../lib/errors.js';
 import { toAbsoluteUrl, formatAssetUrls } from '../utils/url.js';
+import { rejectionReasonSchema, validationErrorResponse } from '../lib/validation.js';
 
 export const adminRoutes = new Hono();
 
@@ -175,18 +176,19 @@ adminRoutes.post('/assets/:id/reject', async (c) => {
   try {
     const assetId = c.req.param('id');
     const adminUser = c.get('user');
-    const body = await c.req.json();
-    const rejectionReason = (body.rejectionReason as string || '').trim();
-
-    if (!rejectionReason || rejectionReason.length < 5) {
-      return c.json(
-        {
-          success: false,
-          message: 'Please provide a clear rejection reason (minimum 5 characters)',
-        },
-        400
-      );
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ success: false, message: 'Invalid JSON request body', code: 'MALFORMED_JSON' }, 400);
     }
+
+    const validated = rejectionReasonSchema.safeParse(body);
+    if (!validated.success) {
+      return validationErrorResponse(c, validated.error);
+    }
+
+    const { rejectionReason } = validated.data;
 
     const [existing] = await db
       .select()
@@ -530,18 +532,19 @@ adminRoutes.post('/payments/:id/reject', async (c) => {
   try {
     const confirmationId = c.req.param('id');
     const adminUser = c.get('user');
-    const body = await c.req.json();
-    const rejectionReason = (body.rejectionReason as string || '').trim();
-
-    if (!rejectionReason || rejectionReason.length < 5) {
-      return c.json(
-        {
-          success: false,
-          message: 'Please provide a clear rejection reason (minimum 5 characters)',
-        },
-        400
-      );
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ success: false, message: 'Invalid JSON request body', code: 'MALFORMED_JSON' }, 400);
     }
+
+    const validated = rejectionReasonSchema.safeParse(body);
+    if (!validated.success) {
+      return validationErrorResponse(c, validated.error);
+    }
+
+    const { rejectionReason } = validated.data;
 
     // Retrieve confirmation
     const [conf] = await db

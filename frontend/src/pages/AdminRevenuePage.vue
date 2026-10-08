@@ -19,6 +19,7 @@ import {
   X,
   ShieldCheck,
   Receipt,
+  AlertCircle,
 } from 'lucide-vue-next';
 
 const revenueData = ref<AdminRevenueResponse | null>(null);
@@ -102,12 +103,22 @@ async function openSellerDetail(userId: string) {
       </div>
     </div>
 
-    <!-- ERROR STATE -->
+    <!-- ERROR STATE WITH RETRY -->
     <div
-      v-if="errorMessage"
-      class="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-400"
+      v-if="errorMessage && !revenueData"
+      class="mb-8 rounded-3xl border border-red-500/30 bg-red-500/10 p-12 text-center"
     >
-      {{ errorMessage }}
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/20 mb-4 text-red-400">
+        <AlertCircle class="h-7 w-7" />
+      </div>
+      <h3 class="font-heading text-xl font-bold text-text-primary mb-2">Gagal Memuat Laporan Revenue</h3>
+      <p class="text-xs text-red-400/90 max-w-md mx-auto mb-6">{{ errorMessage }}</p>
+      <button
+        class="rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow hover:bg-primary-hover transition"
+        @click="loadRevenue"
+      >
+        Coba Muat Ulang
+      </button>
     </div>
 
     <!-- 1. HIGH-LEVEL PLATFORM SUMMARY METRIC CARDS -->

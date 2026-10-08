@@ -54,6 +54,7 @@ export const useCartStore = defineStore('cart', () => {
       }));
     } catch (err: any) {
       console.warn('Could not sync cart from backend:', err?.message);
+      error.value = err?.message || 'Gagal menyinkronkan keranjang belanja dari server.';
     } finally {
       isLoading.value = false;
     }

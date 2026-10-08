@@ -242,6 +242,8 @@ async function handleClaimFree() {
         action-text="Jelajahi Katalog Aset"
         action-to="/explore"
         :action-icon="ArrowLeft"
+        secondary-action-text="Coba Muat Ulang"
+        @secondary-action="loadAssetDetail"
       />
     </div>
 

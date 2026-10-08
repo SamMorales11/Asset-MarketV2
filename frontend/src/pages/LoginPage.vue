@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import {
@@ -23,12 +23,47 @@ const form = reactive({
   rememberMe: false,
 });
 
+const fieldErrors = reactive<Record<string, string>>({
+  email: '',
+  password: '',
+});
+
 const showPassword = ref(false);
 const errorMessage = ref<string | null>(null);
 
+function validateEmail() {
+  if (!form.email.trim()) {
+    fieldErrors.email = 'Email address is required.';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    fieldErrors.email = 'Please enter a valid email address.';
+  } else {
+    fieldErrors.email = '';
+  }
+}
+
+function validatePassword() {
+  if (!form.password) {
+    fieldErrors.password = 'Password is required.';
+  } else {
+    fieldErrors.password = '';
+  }
+}
+
+const isFormValid = computed(() => {
+  return (
+    form.email.trim().length > 0 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) &&
+    form.password.length > 0 &&
+    !fieldErrors.email &&
+    !fieldErrors.password
+  );
+});
+
 async function handleSubmit() {
-  if (!form.email || !form.password) {
-    errorMessage.value = 'Please provide both email and password.';
+  validateEmail();
+  validatePassword();
+
+  if (fieldErrors.email || fieldErrors.password) {
     return;
   }
 
@@ -36,13 +71,17 @@ async function handleSubmit() {
 
   try {
     await authStore.login({
-      email: form.email,
+      email: form.email.trim(),
       password: form.password,
     });
 
     const redirectPath = (route.query.redirect as string) || '/';
     router.push(redirectPath);
   } catch (err: any) {
+    if (err?.fieldErrors) {
+      if (err.fieldErrors.email) fieldErrors.email = err.fieldErrors.email[0];
+      if (err.fieldErrors.password) fieldErrors.password = err.fieldErrors.password[0];
+    }
     errorMessage.value = err?.message || 'Login failed. Please check your credentials.';
   }
 }
@@ -50,6 +89,9 @@ async function handleSubmit() {
 function fillDemo(email: string, password: string) {
   form.email = email;
   form.password = password;
+  fieldErrors.email = '';
+  fieldErrors.password = '';
+  errorMessage.value = null;
 }
 </script>
 
@@ -94,14 +136,20 @@ function fillDemo(email: string, password: string) {
               <input
                 id="email"
                 v-model="form.email"
+                @input="validateEmail"
+                @blur="validateEmail"
                 type="email"
                 required
                 autocomplete="email"
                 placeholder="name@example.com"
-                class="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-4 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                class="w-full rounded-xl border bg-background py-2.5 pl-10 pr-4 text-xs text-text-primary placeholder-text-secondary focus:outline-none transition"
+                :class="fieldErrors.email ? 'border-primary ring-1 ring-primary' : 'border-border focus:border-primary focus:ring-1 focus:ring-primary'"
               />
               <Mail class="absolute left-3.5 top-3 h-4 w-4 text-text-secondary" />
             </div>
+            <p v-if="fieldErrors.email" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.email }}</span>
+            </p>
           </div>
 
           <!-- Password Input -->
@@ -118,11 +166,14 @@ function fillDemo(email: string, password: string) {
               <input
                 id="password"
                 v-model="form.password"
+                @input="validatePassword"
+                @blur="validatePassword"
                 :type="showPassword ? 'text' : 'password'"
                 required
                 autocomplete="current-password"
                 placeholder="••••••••"
-                class="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-10 text-xs text-text-primary placeholder-text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition"
+                class="w-full rounded-xl border bg-background py-2.5 pl-10 pr-10 text-xs text-text-primary placeholder-text-secondary focus:outline-none transition"
+                :class="fieldErrors.password ? 'border-primary ring-1 ring-primary' : 'border-border focus:border-primary focus:ring-1 focus:ring-primary'"
               />
               <Lock class="absolute left-3.5 top-3 h-4 w-4 text-text-secondary" />
               <button
@@ -134,6 +185,9 @@ function fillDemo(email: string, password: string) {
                 <Eye v-else class="h-4 w-4" />
               </button>
             </div>
+            <p v-if="fieldErrors.password" class="mt-1 text-[11px] text-primary flex items-center gap-1">
+              <span>{{ fieldErrors.password }}</span>
+            </p>
           </div>
 
           <!-- Remember Me Checkbox -->
@@ -151,8 +205,8 @@ function fillDemo(email: string, password: string) {
           <!-- Submit Button -->
           <button
             type="submit"
-            :disabled="authStore.isLoading"
-            class="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/25 hover:bg-primary-hover disabled:opacity-50 transition transform active:scale-[0.99]"
+            :disabled="!isFormValid || authStore.isLoading"
+            class="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-semibold text-white shadow-lg shadow-primary/25 hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition transform active:scale-[0.99]"
           >
             <Loader2 v-if="authStore.isLoading" class="h-4 w-4 animate-spin" />
             <span v-else>Sign In</span>

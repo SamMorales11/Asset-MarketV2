@@ -28,6 +28,61 @@ export interface FileValidationResult {
 }
 
 /**
+ * Dangerous file extensions that should NEVER be accepted as raw uploads
+ */
+export const DANGEROUS_EXTENSIONS: readonly string[] = [
+  '.exe', '.bat', '.cmd', '.sh', '.bash', '.ps1', '.vbs', '.vbe',
+  '.js', '.jse', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
+  '.php', '.phtml', '.php3', '.php4', '.php5', '.phps',
+  '.asp', '.aspx', '.cer', '.asa', '.asax',
+  '.jsp', '.jspx', '.cgi', '.pl', '.py', '.pyc', '.pyo',
+  '.jar', '.war', '.ear',
+  '.msi', '.dll', '.so', '.dylib', '.bin',
+  '.scr', '.pif', '.com', '.gadget', '.hta', '.cpl', '.msc',
+  '.html', '.htm', '.xhtml', '.shtml'
+];
+
+/**
+ * Checks whether a filename attempts path traversal or null byte injection
+ */
+export function isSuspiciousFileName(name: string): boolean {
+  if (!name || typeof name !== 'string') return true;
+  // Null byte or control characters
+  if (/[\x00-\x1f\x7f]/.test(name)) return true;
+  // Path traversal attempts
+  if (name.includes('..') || name.includes('/') || name.includes('\\')) return true;
+  return false;
+}
+
+/**
+ * Checks for sneaky double extensions like "document.pdf.exe" or "photo.php.png"
+ */
+export function hasDangerousDoubleExtension(name: string): boolean {
+  const parts = name.toLowerCase().split('.');
+  if (parts.length <= 2) return false;
+  // Check any intermediate part against dangerous extensions
+  for (let i = 1; i < parts.length - 1; i++) {
+    const ext = `.${parts[i]}`;
+    if (DANGEROUS_EXTENSIONS.includes(ext)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Sanitizes a filename to prevent path traversal or special shell characters
+ */
+export function sanitizeFileName(rawName: string): string {
+  const base = path.basename(rawName);
+  return base
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, '_')
+    .trim();
+}
+
+/**
  * Format bytes into human-readable string (e.g., "15.5 MB")
  */
 export function formatBytes(bytes: number, decimals = 1): string {
@@ -253,7 +308,31 @@ export function validateUploadedFile(
     };
   }
 
-  // Handle 'any' category: allows any file up to 500MB
+  // Security Check 1: Reject suspicious file names (null bytes, path traversal)
+  if (isSuspiciousFileName(file.name)) {
+    return {
+      valid: false,
+      error: `File name "${file.name}" contains invalid characters or path traversal sequences.`,
+    };
+  }
+
+  // Security Check 2: Reject dangerous executable/script extensions unconditionally
+  if (DANGEROUS_EXTENSIONS.includes(extension)) {
+    return {
+      valid: false,
+      error: `Invalid file extension "${extension}": Executable and script file types are strictly prohibited for security reasons.`,
+    };
+  }
+
+  // Security Check 3: Reject dangerous double extension spoofing (e.g. "image.php.png")
+  if (hasDangerousDoubleExtension(file.name)) {
+    return {
+      valid: false,
+      error: `Security Alert: Double file extension detected in "${file.name}".`,
+    };
+  }
+
+  // Handle 'any' category: allows any non-dangerous file up to 500MB
   if (category === 'any') {
     const maxSizeBytes = customRules?.maxSizeBytes || 500 * 1024 * 1024;
     if (file.size > maxSizeBytes) {
@@ -320,3 +399,17 @@ export function validateUploadedFile(
     mimeType,
   };
 }
+
+/**
+ * Strict validator for payment transfer receipt slips (JPG, PNG, WEBP up to 10MB)
+ */
+export function validateReceiptFile(
+  file: { name: string; size: number; type?: string } | null | undefined
+): FileValidationResult {
+  return validateUploadedFile(file, 'image', {
+    maxSizeBytes: 10 * 1024 * 1024,
+    allowedExtensions: ['.jpg', '.jpeg', '.png', '.webp'],
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+  });
+}
+

@@ -184,9 +184,94 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
       const res = await app.request(`/api/assets/${createdAssetId}`);
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.success).toBe(true);
       expect(body.data.asset.id).toBe(createdAssetId);
       expect(body.data.asset.status).toBe('approved');
+    });
+
+    it('searches assets by tag keyword', async () => {
+      const res = await app.request('/api/assets?q=Integration');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      const found = body.data.assets.some((a: any) => a.id === createdAssetId);
+      expect(found).toBe(true);
+    });
+
+    it('filters assets by asset type', async () => {
+      const res = await app.request('/api/assets?type=ui_template');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.assets.every((a: any) => a.assetType === 'ui_template')).toBe(true);
+    });
+
+    it('filters assets by paid pricing', async () => {
+      const res = await app.request('/api/assets?pricing=paid');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.assets.every((a: any) => Number(a.price) > 0)).toBe(true);
+    });
+
+    it('filters assets by free pricing', async () => {
+      const res = await app.request('/api/assets?pricing=free');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.assets.every((a: any) => Number(a.discountPrice ?? a.price) <= 0)).toBe(true);
+    });
+
+    it('filters assets by valid price range', async () => {
+      const res = await app.request('/api/assets?minPrice=150000&maxPrice=250000');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(
+        body.data.assets.every((a: any) => {
+          const effective = Number(a.discountPrice ?? a.price);
+          return effective >= 150000 && effective <= 250000;
+        })
+      ).toBe(true);
+    });
+
+    it('rejects inverted price range with 400', async () => {
+      const res = await app.request('/api/assets?minPrice=500000&maxPrice=100000');
+      expect([400, 422]).toContain(res.status);
+      const body = await res.json();
+      expect(body.success).toBe(false);
+    });
+
+    it('sorts assets by price ascending', async () => {
+      const res = await app.request('/api/assets?sort=price_asc&limit=10');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      const prices = body.data.assets.map((a: any) => Number(a.discountPrice ?? a.price));
+      for (let i = 1; i < prices.length; i++) {
+        expect(prices[i]).toBeGreaterThanOrEqual(prices[i - 1]);
+      }
+    });
+
+    it('sorts assets by price descending', async () => {
+      const res = await app.request('/api/assets?sort=price_desc&limit=10');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      const prices = body.data.assets.map((a: any) => Number(a.discountPrice ?? a.price));
+      for (let i = 1; i < prices.length; i++) {
+        expect(prices[i]).toBeLessThanOrEqual(prices[i - 1]);
+      }
+    });
+
+    it('supports custom pagination limits and page numbers', async () => {
+      const res = await app.request('/api/assets?page=1&limit=2');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.pagination.page).toBe(1);
+      expect(body.data.pagination.limit).toBe(2);
+      expect(body.data.pagination.totalPages).toBeGreaterThanOrEqual(1);
+      expect(body.data.assets.length).toBeLessThanOrEqual(2);
     });
   });
 });

@@ -81,15 +81,41 @@ onMounted(async () => {
   }
 });
 
+const DANGEROUS_EXTENSIONS = [
+  '.exe', '.bat', '.cmd', '.sh', '.bash', '.php', '.phtml', '.py', '.js', '.jar',
+  '.vbs', '.msi', '.dll', '.com', '.scr', '.ps1', '.hta', '.wsf',
+];
+
+const ALLOWED_THUMBNAIL_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
+
 function handleThumbnailSelect(event: Event) {
   const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
     const file = target.files[0];
+    const fileName = file.name.toLowerCase();
+    const ext = fileName.slice(fileName.lastIndexOf('.'));
+
+    if (DANGEROUS_EXTENSIONS.some((bad) => fileName.endsWith(bad))) {
+      errorMessage.value = 'File berbahaya ditolak demi keamanan server.';
+      fieldErrors.thumbnail = 'Format file berbahaya ditolak.';
+      target.value = '';
+      return;
+    }
+
+    if (!ALLOWED_THUMBNAIL_EXTS.includes(ext) || !file.type.startsWith('image/')) {
+      errorMessage.value = 'Cover thumbnail harus berupa gambar (JPG, PNG, WEBP).';
+      fieldErrors.thumbnail = 'Format gambar yang diperbolehkan: JPG, PNG, WEBP.';
+      target.value = '';
+      return;
+    }
+
     if (file.size > 15 * 1024 * 1024) {
       errorMessage.value = 'Thumbnail must not exceed 15MB.';
       fieldErrors.thumbnail = 'Ukuran thumbnail maksimal 15MB.';
+      target.value = '';
       return;
     }
+
     thumbnailFile.value = file;
     thumbnailPreview.value = URL.createObjectURL(file);
     errorMessage.value = null;
@@ -101,11 +127,36 @@ function handleAssetFileSelect(event: Event) {
   const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
     const file = target.files[0];
+    const fileName = file.name.toLowerCase();
+
+    // Dangerous extension check
+    if (DANGEROUS_EXTENSIONS.some((bad) => fileName.endsWith(bad))) {
+      errorMessage.value = 'Format file berbahaya ditolak demi keamanan sistem.';
+      fieldErrors.file = 'Format file berbahaya ditolak oleh sistem pengamanan.';
+      target.value = '';
+      return;
+    }
+
+    // Double extension check (e.g. evil.php.zip)
+    const parts = fileName.split('.');
+    if (parts.length > 2) {
+      for (let i = 1; i < parts.length - 1; i++) {
+        if (DANGEROUS_EXTENSIONS.includes(`.${parts[i]}`)) {
+          errorMessage.value = 'Double extension terindikasi berisiko.';
+          fieldErrors.file = 'File dengan nama berisiko ditolak.';
+          target.value = '';
+          return;
+        }
+      }
+    }
+
     if (file.size > 500 * 1024 * 1024) {
       errorMessage.value = 'Main asset file must not exceed 500MB.';
       fieldErrors.file = 'Ukuran berkas utama maksimal 500MB.';
+      target.value = '';
       return;
     }
+
     assetFile.value = file;
     errorMessage.value = null;
     delete fieldErrors.file;
@@ -123,6 +174,18 @@ function addTag() {
 function removeTag(index: number) {
   form.tags.splice(index, 1);
 }
+
+const isFormValid = computed(() => {
+  const isTitleOk = form.title.trim().length >= 3;
+  const isDescOk = form.description.trim().length >= 10;
+  const isCategoryOk = Boolean(form.categoryId);
+  const isPriceOk = form.price >= 0;
+  const isDiscountOk = form.discountPrice === null || form.discountPrice < form.price;
+  const isThumbOk = thumbnailFile.value !== null && !fieldErrors.thumbnail;
+  const isFileOk = assetFile.value !== null && !fieldErrors.file;
+
+  return isTitleOk && isDescOk && isCategoryOk && isPriceOk && isDiscountOk && isThumbOk && isFileOk;
+});
 
 async function handleSubmit() {
   if (isSubmitting.value) return;
@@ -198,6 +261,14 @@ async function handleSubmit() {
       `Aset "${form.title}" telah masuk ke antrean kurasi. Tim kurator akan meninjau kelayakan aset Anda dalam 1x24 jam.`
     );
   } catch (err: any) {
+    if (err?.fieldErrors) {
+      for (const [key, msgs] of Object.entries(err.fieldErrors)) {
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          fieldErrors[key] = (msgs as string[])[0];
+        }
+      }
+    }
+
     const isTimeoutOrNetwork =
       err?.code === 'NETWORK_ERROR' ||
       err?.code === 'TIMEOUT' ||
@@ -582,8 +653,8 @@ function resetForm() {
         <button
           type="submit"
           id="submit-asset-moderation-btn"
-          :disabled="isSubmitting"
-          class="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white shadow-xl shadow-primary/25 hover:bg-primary-hover disabled:opacity-50 transition transform active:scale-[0.99]"
+          :disabled="!isFormValid || isSubmitting"
+          class="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white shadow-xl shadow-primary/25 hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 transition transform active:scale-[0.99]"
         >
           <Loader2 v-if="isSubmitting" class="h-5 w-5 animate-spin" />
           <UploadCloud v-else class="h-5 w-5" />

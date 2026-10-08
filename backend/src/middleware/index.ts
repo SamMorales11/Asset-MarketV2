@@ -84,3 +84,6 @@ export function requireRole(...allowedRoles: UserRole[]) {
     return next();
   };
 }
+
+export { createRateLimiter, authRateLimiter } from './rateLimiter.js';
+
