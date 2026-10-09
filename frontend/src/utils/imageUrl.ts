@@ -53,8 +53,8 @@ export function getLuxuryPlaceholder(title = 'Digital Asset', category = 'Curate
     <!-- Geometric Luxury Star Emblem -->
     <path d="M400 152 L406 172 L426 178 L406 184 L400 204 L394 184 L374 178 L394 172 Z" fill="url(#gemGrad)"/>
     <circle cx="400" cy="178" r="3" fill="#FFFFFF"/>
-    <text x="400" y="255" text-anchor="middle" font-family="'Instrument Serif', Georgia, serif" font-size="24" font-style="italic" fill="#EEEEF4" letter-spacing="0.3">${safeTitle}</text>
-    <text x="400" y="285" text-anchor="middle" font-family="'Satoshi', system-ui, sans-serif" font-size="10" font-weight="700" fill="#717182" letter-spacing="3.5">${safeCategory}</text>
+    <text x="400" y="255" text-anchor="middle" font-family="'Fraunces', Georgia, serif" font-size="24" font-style="italic" fill="#EEEEF4" letter-spacing="0.3">${safeTitle}</text>
+    <text x="400" y="285" text-anchor="middle" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="#717182" letter-spacing="3.5">${safeCategory}</text>
   </svg>`;
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;

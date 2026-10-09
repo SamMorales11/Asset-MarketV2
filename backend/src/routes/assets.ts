@@ -261,10 +261,14 @@ const handleUpdateAsset = async (c: any) => {
 
     // If categoryId is changing, ensure target category exists
     if (data.categoryId && data.categoryId !== existing.categoryId) {
+      // Use id if valid UUID, otherwise query by slug
+      const catCondition = isUuid(data.categoryId)
+        ? eq(categories.id, data.categoryId)
+        : eq(categories.slug, data.categoryId);
       const [cat] = await db
         .select({ id: categories.id })
         .from(categories)
-        .where(and(eq(categories.id, data.categoryId), isNull(categories.deletedAt)))
+        .where(and(catCondition, isNull(categories.deletedAt)))
         .limit(1);
       if (!cat) {
         return c.json({ success: false, message: 'Specified category does not exist', code: 'INVALID_CATEGORY' }, 400);
@@ -475,6 +479,13 @@ assetRoutes.get('/my', authMiddleware, async (c) => {
 });
 
 /**
+ * Check if a string is a valid UUID v4 format
+ */
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/**
  * GET /assets
  * Public marketplace listing: retrieves ONLY approved assets with filters and pagination
  */
@@ -508,12 +519,12 @@ assetRoutes.get('/', async (c) => {
     const conditions = [eq(assets.status, 'approved'), isNull(assets.deletedAt)];
 
     if (categoryQuery && categoryQuery !== 'all') {
-      conditions.push(
-        or(
-          eq(categories.slug, categoryQuery.trim()),
-          eq(categories.id, categoryQuery.trim())
-        )!
-      );
+      const trimmed = categoryQuery.trim();
+      // Use categories.id only when the query is a valid UUID; otherwise query by slug
+      const catCondition = isUuid(trimmed)
+        ? eq(categories.id, trimmed)
+        : eq(categories.slug, trimmed);
+      conditions.push(catCondition);
     }
 
     if (assetType && assetType !== 'all') {

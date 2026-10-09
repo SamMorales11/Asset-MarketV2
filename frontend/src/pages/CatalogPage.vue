@@ -8,7 +8,6 @@ import EmptyState from '../components/EmptyState.vue';
 import type { Asset, Category, Pagination } from '../types';
 import {
   Search,
-  Filter,
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
@@ -29,6 +28,8 @@ import {
   ArrowUpDown,
   Tag,
   Check,
+  Grid3X3,
+  LayoutList,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -49,11 +50,11 @@ const isError = ref(false);
 const errorMessage = ref<string | null>(null);
 const mobileFilterOpen = ref(false);
 
-// Search input model with debounce
+// Search
 const searchQuery = ref((route.query.q as string) || (route.query.search as string) || '');
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Filter Form State (synced with URL)
+// Filters
 const filters = reactive({
   category: (route.query.category as string) || 'all',
   type: (route.query.type as string) || 'all',
@@ -71,7 +72,6 @@ const filters = reactive({
   page: route.query.page ? Number(route.query.page) : 1,
 });
 
-// Custom price input local values
 const localMinPrice = ref<number | undefined>(filters.minPrice);
 const localMaxPrice = ref<number | undefined>(filters.maxPrice);
 
@@ -85,17 +85,17 @@ const assetTypes: { id: string; label: string; icon: any }[] = [
 ];
 
 const pricingOptions: { id: 'all' | 'paid' | 'free'; label: string; icon: any }[] = [
-  { id: 'all', label: 'All Assets', icon: Layers },
-  { id: 'paid', label: 'Paid Only', icon: Coins },
-  { id: 'free', label: 'Free Only', icon: Gift },
+  { id: 'all', label: 'All', icon: Layers },
+  { id: 'paid', label: 'Paid', icon: Coins },
+  { id: 'free', label: 'Free', icon: Gift },
 ];
 
 const sortOptions = [
-  { id: 'newest', label: 'Newest First' },
-  { id: 'price_asc', label: 'Price: Low → High' },
-  { id: 'price_desc', label: 'Price: High → Low' },
+  { id: 'newest', label: 'Newest' },
+  { id: 'price_asc', label: 'Price ↑' },
+  { id: 'price_desc', label: 'Price ↓' },
   { id: 'popular', label: 'Most Downloaded' },
-  { id: 'rating', label: 'Highest Rated' },
+  { id: 'rating', label: 'Top Rated' },
 ];
 
 const pricePresets = [
@@ -127,7 +127,7 @@ const activeFilterCount = computed(() => {
 });
 
 const currentCategoryName = computed(() => {
-  if (filters.category === 'all') return 'All Categories';
+  if (filters.category === 'all') return 'All';
   const found = categories.value.find(
     (c) => c.slug === filters.category || c.id === filters.category
   );
@@ -144,12 +144,9 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
+  if (debounceTimer) clearTimeout(debounceTimer);
 });
 
-// Watch route query changes for browser back/forward navigation
 watch(
   () => route.query,
   () => {
@@ -194,24 +191,12 @@ async function fetchAssets() {
       sort: filters.sort,
     };
 
-    if (filters.category && filters.category !== 'all') {
-      params.category = filters.category;
-    }
-    if (filters.type && filters.type !== 'all') {
-      params.type = filters.type;
-    }
-    if (filters.pricing && filters.pricing !== 'all') {
-      params.pricing = filters.pricing;
-    }
-    if (filters.q.trim()) {
-      params.q = filters.q.trim();
-    }
-    if (filters.minPrice !== undefined) {
-      params.minPrice = filters.minPrice;
-    }
-    if (filters.maxPrice !== undefined) {
-      params.maxPrice = filters.maxPrice;
-    }
+    if (filters.category && filters.category !== 'all') params.category = filters.category;
+    if (filters.type && filters.type !== 'all') params.type = filters.type;
+    if (filters.pricing && filters.pricing !== 'all') params.pricing = filters.pricing;
+    if (filters.q.trim()) params.q = filters.q.trim();
+    if (filters.minPrice !== undefined) params.minPrice = filters.minPrice;
+    if (filters.maxPrice !== undefined) params.maxPrice = filters.maxPrice;
 
     const result = await assetService.getPublicAssets(params);
     assets.value = result.assets;
@@ -219,7 +204,7 @@ async function fetchAssets() {
   } catch (err: any) {
     console.error('Fetch assets error:', err);
     isError.value = true;
-    errorMessage.value = err?.message || 'Failed to retrieve marketplace catalog.';
+    errorMessage.value = err?.message || 'Unable to load marketplace catalog.';
   } finally {
     isLoading.value = false;
   }
@@ -240,16 +225,12 @@ function updateQueryParams() {
   router.push({ query });
 }
 
-// Debounced live search
 function onSearchInput(event: Event) {
   const target = event.target as HTMLInputElement;
   const val = target.value;
   searchQuery.value = val;
 
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
-
+  if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     if (filters.q !== val.trim()) {
       filters.q = val.trim();
@@ -260,9 +241,7 @@ function onSearchInput(event: Event) {
 }
 
 function handleSearchImmediate() {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
+  if (debounceTimer) clearTimeout(debounceTimer);
   if (filters.q !== searchQuery.value.trim()) {
     filters.q = searchQuery.value.trim();
     filters.page = 1;
@@ -271,9 +250,7 @@ function handleSearchImmediate() {
 }
 
 function clearSearch() {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
+  if (debounceTimer) clearTimeout(debounceTimer);
   searchQuery.value = '';
   if (filters.q !== '') {
     filters.q = '';
@@ -282,8 +259,8 @@ function clearSearch() {
   }
 }
 
-function applyCategory(catSlug: string) {
-  filters.category = catSlug;
+function applyCategory(slug: string) {
+  filters.category = slug;
   filters.page = 1;
   updateQueryParams();
 }
@@ -312,10 +289,8 @@ function applyPricePreset(min?: number, max?: number) {
 function applyCustomPrice() {
   let min = localMinPrice.value;
   let max = localMaxPrice.value;
-
   if (min !== undefined && min < 0) min = 0;
   if (max !== undefined && max < 0) max = 0;
-
   if (min !== undefined && max !== undefined && min > max) {
     const temp = min;
     min = max;
@@ -323,7 +298,6 @@ function applyCustomPrice() {
     localMinPrice.value = min;
     localMaxPrice.value = max;
   }
-
   filters.minPrice = min;
   filters.maxPrice = max;
   filters.page = 1;
@@ -355,9 +329,7 @@ function goToPage(p: number) {
 }
 
 function resetAllFilters() {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
+  if (debounceTimer) clearTimeout(debounceTimer);
   searchQuery.value = '';
   filters.category = 'all';
   filters.type = 'all';
@@ -374,8 +346,8 @@ function resetAllFilters() {
 
 function formatPriceShort(val?: number): string {
   if (val === undefined) return '';
-  if (val >= 1000000) return `Rp ${(val / 1000000).toLocaleString('id-ID')} jt`;
-  if (val >= 1000) return `Rp ${(val / 1000).toLocaleString('id-ID')} rb`;
+  if (val >= 1000000) return `Rp ${(val / 1000000).toLocaleString('id-ID')}jt`;
+  if (val >= 1000) return `Rp ${(val / 1000).toLocaleString('id-ID')}rb`;
   return `Rp ${val.toLocaleString('id-ID')}`;
 }
 
@@ -391,99 +363,115 @@ function visiblePages(): number[] {
 
 <template>
   <div class="min-h-screen">
-    <!-- ═══════════════════════════════════════════════
-         EDITORIAL HERO HEADER
-         ═══════════════════════════════════════════════ -->
-    <div class="border-b border-border/40">
-      <div class="mx-auto max-w-[1440px] px-6 lg:px-12 pt-12 pb-10">
-        <!-- Eyebrow + Headline + Search Bar -->
-        <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-10">
-          <div class="max-w-2xl">
-            <div class="inline-flex items-center gap-2.5 text-[10px] font-bold text-secondary uppercase tracking-[0.25em] mb-4">
-              <span class="h-px w-8 bg-secondary/60"></span>
-              <span>Curated Marketplace</span>
+
+    <!-- ═══════════════════════════════
+         HERO: Editorial Masthead
+         ═══════════════════════════════ -->
+    <div class="relative overflow-hidden border-b border-border/30">
+      <!-- Subtle background texture -->
+      <div class="absolute inset-0 opacity-[0.03]"
+        style="background-image: radial-gradient(circle at 1px 1px, #F5F2ED 1px, transparent 0); background-size: 28px 28px;">
+      </div>
+      <!-- Gradient accent line -->
+      <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-60"></div>
+
+      <div class="relative mx-auto max-w-[1440px] px-6 lg:px-12 pt-14 pb-8">
+        <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+
+          <!-- Left: Typography -->
+          <div class="max-w-xl">
+            <!-- Eyebrow -->
+            <div class="inline-flex items-center gap-2.5 mb-5">
+              <div class="h-px w-8 bg-secondary"></div>
+              <span class="text-[10px] font-bold uppercase tracking-[0.3em] text-secondary">Curated Marketplace</span>
             </div>
-            <h1 class="font-heading text-5xl sm:text-6xl lg:text-[4.5rem] font-bold tracking-tight text-text-primary leading-[0.92]">
-              Explore Assets
+            <!-- Headline -->
+            <h1 class="font-heading text-[3.5rem] sm:text-[4.5rem] lg:text-[5.5rem] font-bold text-text-primary leading-[0.88] tracking-tight">
+              Explore<br />
+              <span class="text-primary italic">Digital Assets</span>
             </h1>
-            <p class="mt-4 text-[13px] text-text-secondary max-w-md leading-[1.7]">
-              Discover premium digital assets vetted for quality — source code, UI kits, 3D models, graphics, and audio ready for production.
+            <!-- Sub -->
+            <p class="mt-4 text-[13px] text-text-secondary max-w-sm leading-[1.75]">
+              Premium source code, UI kits, 3D models, graphics &amp; audio — all verified by our team.
             </p>
           </div>
 
-          <!-- Search & Mobile Filter Controls -->
-          <div class="flex items-center gap-3 w-full lg:w-auto">
-            <!-- Debounced Search Input -->
-            <div class="relative w-full lg:w-96 group">
+          <!-- Right: Stats + Search -->
+          <div class="flex flex-col items-start lg:items-end gap-5 w-full lg:w-auto">
+            <!-- Live stats bar -->
+            <div class="flex items-center gap-6">
+              <div class="text-right">
+                <p class="font-heading text-2xl font-bold text-text-primary tabular-nums">{{ pagination.total.toLocaleString() }}</p>
+                <p class="text-[10px] text-text-muted uppercase tracking-wider">Assets</p>
+              </div>
+              <div class="h-8 w-px bg-border/50"></div>
+              <div class="text-right">
+                <p class="font-heading text-2xl font-bold text-text-primary tabular-nums">{{ categories.length }}</p>
+                <p class="text-[10px] text-text-muted uppercase tracking-wider">Categories</p>
+              </div>
+            </div>
+
+            <!-- Search bar -->
+            <div class="relative w-full lg:w-[380px] group">
+              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search class="h-4 w-4 text-text-muted group-focus-within:text-secondary transition-colors" />
+              </div>
               <input
                 :value="searchQuery"
                 type="text"
-                placeholder="Search by title, description, or tags..."
-                class="w-full rounded-xl border border-border/50 bg-elevated/80 py-3 pl-11 pr-10 text-[13px] text-text-primary placeholder-text-muted focus:border-secondary/60 focus:outline-none focus:ring-1 focus:ring-secondary/20 transition-all duration-200"
+                placeholder="Search assets, tags, or creators..."
+                class="w-full rounded-2xl border border-border/50 bg-elevated/80 py-3.5 pl-11 pr-10 text-[13px] text-text-primary placeholder-text-muted/60 focus:border-secondary/50 focus:outline-none focus:ring-2 focus:ring-secondary/15 transition-all duration-200"
                 @input="onSearchInput"
                 @keyup.enter="handleSearchImmediate"
               />
-              <Search class="absolute left-4 top-3.5 h-4 w-4 text-text-muted group-focus-within:text-secondary transition" />
-
-              <!-- Clear search button -->
               <button
                 v-if="searchQuery"
                 type="button"
-                class="absolute right-3 top-3 h-5 w-5 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-elevated-subtle transition"
-                title="Hapus pencarian"
+                class="absolute right-3.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-border/60 transition"
                 @click="clearSearch"
               >
                 <X class="h-3 w-3" />
               </button>
             </div>
-
-            <!-- Mobile Filter Trigger Button -->
-            <button
-              type="button"
-              class="lg:hidden relative flex items-center gap-2 rounded-xl border border-border/50 bg-elevated px-4 py-3 text-[12px] font-semibold text-text-primary hover:border-border-hover transition shrink-0"
-              @click="mobileFilterOpen = true"
-            >
-              <Filter class="h-4 w-4 text-secondary" />
-              <span>Filters</span>
-              <span
-                v-if="activeFilterCount > 0"
-                class="flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-background"
-              >
-                {{ activeFilterCount }}
-              </span>
-            </button>
           </div>
         </div>
+      </div>
+    </div>
 
-        <!-- ═══ Horizontal Category Pills ═══ -->
-        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 -mb-px">
+    <!-- ═══════════════════════════════
+         CATEGORY PILLS NAV
+         ═══════════════════════════════ -->
+    <div class="border-b border-border/30 bg-elevated/30">
+      <div class="mx-auto max-w-[1440px] px-6 lg:px-12">
+        <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-3">
+          <!-- All -->
           <button
-            class="shrink-0 rounded-full px-5 py-2 text-[11px] font-semibold tracking-wide transition-all duration-200"
+            class="shrink-0 rounded-full px-5 py-2 text-[11px] font-semibold tracking-wide transition-all duration-200 whitespace-nowrap"
             :class="
               filters.category === 'all'
-                ? 'bg-text-primary text-background shadow-lg'
-                : 'text-text-secondary hover:text-text-primary border border-border/40 hover:border-border-hover'
+                ? 'bg-text-primary text-background shadow-lg shadow-black/20'
+                : 'text-text-secondary hover:text-text-primary border border-transparent hover:border-border/50'
             "
             @click="applyCategory('all')"
           >
-            All Categories
+            All Assets
           </button>
 
           <button
             v-for="cat in categories"
             :key="cat.id"
-            class="shrink-0 rounded-full px-5 py-2 text-[11px] font-semibold tracking-wide transition-all duration-200 inline-flex items-center gap-2"
+            class="shrink-0 rounded-full px-5 py-2 text-[11px] font-semibold tracking-wide transition-all duration-200 whitespace-nowrap inline-flex items-center gap-2"
             :class="
               filters.category === cat.slug || filters.category === cat.id
-                ? 'bg-text-primary text-background shadow-lg'
-                : 'text-text-secondary hover:text-text-primary border border-border/40 hover:border-border-hover'
+                ? 'bg-text-primary text-background shadow-lg shadow-black/20'
+                : 'text-text-secondary hover:text-text-primary border border-transparent hover:border-border/50'
             "
             @click="applyCategory(cat.slug)"
           >
-            <span>{{ cat.name }}</span>
+            {{ cat.name }}
             <span
               v-if="cat.assetCount !== undefined && cat.assetCount > 0"
-              class="text-[9px] opacity-60 tabular-nums"
+              class="text-[9px] opacity-50 tabular-nums"
             >
               {{ cat.assetCount }}
             </span>
@@ -492,77 +480,76 @@ function visiblePages(): number[] {
       </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════
-         MAIN LAYOUT: DESKTOP SIDEBAR + RESULTS GRID
-         ═══════════════════════════════════════════════ -->
-    <div class="mx-auto max-w-[1440px] px-6 lg:px-12 py-10">
-      <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-10 xl:gap-12 items-start">
+    <!-- ═══════════════════════════════
+         MAIN LAYOUT
+         ═══════════════════════════════ -->
+    <div class="mx-auto max-w-[1440px] px-6 lg:px-12 py-8">
+      <div class="grid grid-cols-1 lg:grid-cols-[240px_1fr] xl:grid-cols-[260px_1fr] gap-8 xl:gap-10 items-start">
 
-        <!-- ═══ DESKTOP FILTER SIDEBAR ═══ -->
+        <!-- ═══ SIDEBAR ═══ -->
         <aside class="hidden lg:block">
-          <div class="sticky top-24 space-y-5">
-            <div class="rounded-2xl border border-border/40 bg-elevated-card p-5 space-y-6">
-              <!-- Filter Header -->
-              <div class="flex items-center justify-between pb-3 border-b border-border/30">
-                <div class="flex items-center gap-2 text-[13px] font-bold text-text-primary">
+          <div class="sticky top-24 space-y-4">
+
+            <!-- Filter Card -->
+            <div class="rounded-2xl border border-border/40 bg-elevated/60 p-5">
+
+              <!-- Header -->
+              <div class="flex items-center justify-between pb-4 mb-4 border-b border-border/30">
+                <div class="flex items-center gap-2.5">
                   <SlidersHorizontal class="h-4 w-4 text-secondary" />
-                  <span>Filters</span>
+                  <span class="text-[12px] font-bold text-text-primary">Filters</span>
                   <span
                     v-if="activeFilterCount > 0"
-                    class="rounded-full bg-secondary/15 px-2 py-0.5 text-[10px] font-bold text-secondary"
+                    class="flex h-5 w-5 items-center justify-center rounded-full bg-secondary/20 text-secondary text-[10px] font-bold"
                   >
                     {{ activeFilterCount }}
                   </span>
                 </div>
                 <button
                   v-if="hasActiveFilters"
-                  class="text-[11px] text-text-muted hover:text-primary transition flex items-center gap-1 font-medium"
+                  class="flex items-center gap-1.5 text-[10px] text-text-muted hover:text-primary transition-colors font-medium"
                   @click="resetAllFilters"
                 >
                   <RotateCcw class="h-3 w-3" />
-                  <span>Reset All</span>
+                  Reset
                 </button>
               </div>
 
-              <!-- 1. Free vs Paid Filter (Segmented Control) -->
-              <div>
-                <h4 class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-2.5">
-                  Pricing Model
-                </h4>
-                <div class="grid grid-cols-3 gap-1 rounded-xl bg-background p-1 border border-border/40">
+              <!-- Pricing Toggle -->
+              <div class="mb-5">
+                <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-text-muted mb-2.5">Pricing</p>
+                <div class="grid grid-cols-3 gap-1 rounded-xl bg-background/80 p-1 border border-border/30">
                   <button
                     v-for="opt in pricingOptions"
                     :key="opt.id"
                     type="button"
-                    class="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[11px] font-medium transition-all"
+                    class="flex flex-col items-center justify-center py-2 rounded-lg text-[10px] font-semibold transition-all duration-150"
                     :class="
                       filters.pricing === opt.id
-                        ? 'bg-elevated-card text-secondary font-semibold shadow-sm border border-border/50'
+                        ? 'bg-elevated text-secondary shadow-sm border border-border/60'
                         : 'text-text-muted hover:text-text-primary'
                     "
                     @click="applyPricing(opt.id)"
                   >
                     <component :is="opt.icon" class="h-3.5 w-3.5 mb-1 opacity-80" />
-                    <span class="truncate">{{ opt.label.replace(' Only', '').replace(' Assets', '') }}</span>
+                    <span>{{ opt.label }}</span>
                   </button>
                 </div>
               </div>
 
-              <!-- 2. Asset Type Filter -->
-              <div>
-                <h4 class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-2.5">
-                  Asset Type
-                </h4>
-                <div class="space-y-1">
+              <!-- Asset Type -->
+              <div class="mb-5">
+                <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-text-muted mb-2.5">Type</p>
+                <div class="space-y-0.5">
                   <button
                     v-for="t in assetTypes"
                     :key="t.id"
                     type="button"
-                    class="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[12px] text-left transition-all duration-150"
+                    class="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[11px] transition-all duration-150"
                     :class="
                       filters.type === t.id
-                        ? 'bg-secondary/10 text-secondary font-semibold border border-secondary/20'
-                        : 'text-text-secondary hover:bg-elevated-subtle hover:text-text-primary'
+                        ? 'bg-secondary/10 text-secondary font-semibold'
+                        : 'text-text-secondary hover:bg-elevated/50 hover:text-text-primary'
                     "
                     @click="applyType(t.id)"
                   >
@@ -570,37 +557,35 @@ function visiblePages(): number[] {
                       <component :is="t.icon" class="h-3.5 w-3.5 shrink-0 opacity-70" />
                       <span>{{ t.label }}</span>
                     </div>
-                    <Check v-if="filters.type === t.id" class="h-3.5 w-3.5 text-secondary" />
+                    <Check v-if="filters.type === t.id" class="h-3.5 w-3.5 text-secondary shrink-0" />
                   </button>
                 </div>
               </div>
 
-              <!-- 3. Price Range Filter -->
-              <div class="border-t border-border/30 pt-4">
+              <!-- Price Range -->
+              <div class="pt-4 border-t border-border/30">
                 <div class="flex items-center justify-between mb-2.5">
-                  <h4 class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted">
-                    Price Range
-                  </h4>
+                  <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-text-muted">Price Range</p>
                   <button
                     v-if="filters.minPrice !== undefined || filters.maxPrice !== undefined"
                     class="text-[10px] text-secondary hover:underline"
                     @click="clearPriceFilter"
                   >
-                    Clear Price
+                    Clear
                   </button>
                 </div>
 
-                <!-- Price Presets -->
-                <div class="space-y-1 mb-3">
+                <!-- Presets -->
+                <div class="space-y-0.5 mb-3">
                   <button
                     v-for="preset in pricePresets"
                     :key="preset.label"
                     type="button"
-                    class="w-full text-left rounded-lg px-3 py-1.5 text-[12px] transition-all duration-150"
+                    class="w-full text-left rounded-lg px-3 py-1.5 text-[11px] transition-all duration-150"
                     :class="
                       filters.minPrice === preset.min && filters.maxPrice === preset.max
-                        ? 'text-secondary font-semibold bg-secondary/10 border border-secondary/20'
-                        : 'text-text-secondary hover:text-text-primary hover:bg-elevated-subtle'
+                        ? 'text-secondary font-semibold bg-secondary/10'
+                        : 'text-text-secondary hover:bg-elevated/50 hover:text-text-primary'
                     "
                     @click="applyPricePreset(preset.min, preset.max)"
                   >
@@ -608,218 +593,188 @@ function visiblePages(): number[] {
                   </button>
                 </div>
 
-                <!-- Custom Range Inputs -->
-                <div class="space-y-2 pt-2 border-t border-border/20">
-                  <div class="text-[11px] text-text-muted">Custom Range (Rp):</div>
+                <!-- Custom -->
+                <div class="pt-2 border-t border-border/20 space-y-2">
                   <div class="grid grid-cols-2 gap-2">
                     <input
                       v-model.number="localMinPrice"
                       type="number"
-                      placeholder="Min (Rp)"
+                      placeholder="Min"
                       min="0"
                       step="10000"
-                      class="w-full rounded-lg border border-border/40 bg-background py-1.5 px-2.5 text-[11px] text-text-primary placeholder-text-muted focus:border-secondary/50 focus:outline-none transition"
+                      class="w-full rounded-lg border border-border/40 bg-background/80 py-1.5 px-2.5 text-[11px] text-text-primary placeholder-text-muted/50 focus:border-secondary/50 focus:outline-none transition-colors"
                       @keyup.enter="applyCustomPrice"
                     />
                     <input
                       v-model.number="localMaxPrice"
                       type="number"
-                      placeholder="Max (Rp)"
+                      placeholder="Max"
                       min="0"
                       step="10000"
-                      class="w-full rounded-lg border border-border/40 bg-background py-1.5 px-2.5 text-[11px] text-text-primary placeholder-text-muted focus:border-secondary/50 focus:outline-none transition"
+                      class="w-full rounded-lg border border-border/40 bg-background/80 py-1.5 px-2.5 text-[11px] text-text-primary placeholder-text-muted/50 focus:border-secondary/50 focus:outline-none transition-colors"
                       @keyup.enter="applyCustomPrice"
                     />
                   </div>
                   <button
                     type="button"
-                    class="w-full rounded-lg bg-elevated-subtle hover:bg-border/60 py-1.5 text-[11px] font-semibold text-text-primary transition"
+                    class="w-full rounded-lg bg-elevated/50 hover:bg-border/40 py-1.5 text-[10px] font-semibold text-text-secondary hover:text-text-primary transition-colors"
                     @click="applyCustomPrice"
                   >
-                    Apply Price
+                    Apply
                   </button>
                 </div>
               </div>
+            </div>
 
-              <!-- Quality Trust Indicator -->
-              <div class="border-t border-border/30 pt-4">
-                <div class="flex items-center gap-2 text-[10px] text-success">
-                  <span class="h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
-                  <span class="font-medium tracking-wide">100% Curated & Admin-Verified</span>
-                </div>
-              </div>
+            <!-- Trust Badge -->
+            <div class="rounded-xl border border-success/20 bg-success/8 p-3.5 flex items-center gap-2.5">
+              <div class="h-1.5 w-1.5 rounded-full bg-success shrink-0 animate-pulse"></div>
+              <p class="text-[10px] text-success leading-snug font-medium">All assets are curated &amp; admin-verified before listing.</p>
             </div>
           </div>
         </aside>
 
-        <!-- ═══ RESULTS MAIN COLUMN ═══ -->
+        <!-- ═══ RESULTS ═══ -->
         <section>
-          <!-- Results Top Bar: Count & Sorting -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div class="text-[13px] text-text-secondary">
-              <span v-if="!isLoading && !isError">
-                Showing
-                <strong class="text-text-primary font-bold tabular-nums">{{ assets.length }}</strong>
-                of
-                <strong class="text-text-primary font-bold tabular-nums">{{ pagination.total }}</strong>
-                assets
-                <span v-if="filters.q.trim()" class="text-text-muted">
-                  for "<strong class="text-secondary font-medium">{{ filters.q }}</strong>"
+
+          <!-- Top Bar -->
+          <div class="flex items-center justify-between gap-4 mb-5">
+            <!-- Result count -->
+            <div class="flex items-center gap-3">
+              <span v-if="!isLoading && !isError" class="text-[12px] text-text-secondary">
+                <span class="font-bold text-text-primary tabular-nums">{{ pagination.total.toLocaleString() }}</span>
+                <span class="text-text-muted mx-1">results</span>
+                <span v-if="filters.q.trim()" class="inline-flex items-center gap-1 text-secondary">
+                  <span>for</span>
+                  <span class="font-semibold">"{{ filters.q }}"</span>
                 </span>
               </span>
-              <span v-else-if="isLoading" class="text-text-muted inline-flex items-center gap-2">
-                <span class="h-2 w-2 rounded-full bg-secondary animate-ping"></span>
-                <span>Searching catalog...</span>
+              <span v-else-if="isLoading" class="inline-flex items-center gap-2 text-[12px] text-text-muted">
+                <span class="h-1.5 w-1.5 rounded-full bg-secondary animate-ping"></span>
+                Loading...
               </span>
             </div>
 
-            <!-- Sort Dropdown -->
-            <div class="flex items-center gap-2.5 text-[12px]">
-              <span class="text-text-muted shrink-0 flex items-center gap-1">
-                <ArrowUpDown class="h-3.5 w-3.5 opacity-60" />
-                <span>Sort by:</span>
-              </span>
-              <div class="relative">
+            <div class="flex items-center gap-3">
+              <!-- Sort -->
+              <div class="relative flex items-center gap-2">
+                <ArrowUpDown class="h-3.5 w-3.5 text-text-muted shrink-0" />
                 <select
                   :value="filters.sort"
-                  class="rounded-xl border border-border/50 bg-elevated-card py-2 pl-3 pr-8 text-[12px] font-medium text-text-primary focus:border-secondary/60 focus:outline-none focus:ring-1 focus:ring-secondary/20 transition cursor-pointer appearance-none"
+                  class="rounded-xl border border-border/50 bg-elevated/80 py-1.5 pl-3 pr-7 text-[11px] font-medium text-text-primary focus:border-secondary/50 focus:outline-none focus:ring-1 focus:ring-secondary/20 transition cursor-pointer appearance-none"
                   @change="handleSortChange"
                 >
-                  <option v-for="opt in sortOptions" :key="opt.id" :value="opt.id">
-                    {{ opt.label }}
-                  </option>
+                  <option v-for="opt in sortOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
                 </select>
-                <ChevronRight class="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-text-muted rotate-90" />
+                <ChevronRight class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted rotate-90" />
               </div>
+
+              <!-- Mobile filter button -->
+              <button
+                type="button"
+                class="lg:hidden relative flex items-center gap-2 rounded-xl border border-border/50 bg-elevated/80 px-3.5 py-1.5 text-[11px] font-semibold text-text-primary hover:border-border transition-colors"
+                @click="mobileFilterOpen = true"
+              >
+                <SlidersHorizontal class="h-3.5 w-3.5 text-secondary" />
+                <span>Filters</span>
+                <span
+                  v-if="activeFilterCount > 0"
+                  class="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-secondary text-[9px] font-bold text-background"
+                >
+                  {{ activeFilterCount }}
+                </span>
+              </button>
             </div>
           </div>
 
-          <!-- Active Filter Tags / Chips Bar -->
+          <!-- Active Filter Strip -->
           <div
             v-if="hasActiveFilters"
-            class="flex flex-wrap items-center gap-2 mb-6 p-3 rounded-xl bg-elevated/40 border border-border/30"
+            class="flex flex-wrap items-center gap-2 mb-5"
           >
-            <span class="text-[11px] font-bold uppercase tracking-wider text-text-muted mr-1">
-              Active Filters:
-            </span>
-
-            <!-- Keyword Chip -->
             <span
               v-if="filters.q.trim()"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-elevated-card border border-border/60 px-2.5 py-1 text-[11px] text-text-primary"
+              class="inline-flex items-center gap-1.5 rounded-full bg-elevated/80 border border-border/50 px-3 py-1 text-[11px] text-text-primary"
             >
               <Search class="h-3 w-3 text-secondary" />
-              <span>Keyword: "{{ filters.q }}"</span>
-              <button
-                type="button"
-                class="hover:text-primary transition"
-                title="Hapus kata kunci"
-                @click="clearSearch"
-              >
+              <span>"{{ filters.q }}"</span>
+              <button class="ml-0.5 hover:text-primary transition-colors" @click="clearSearch">
                 <X class="h-3 w-3" />
               </button>
             </span>
 
-            <!-- Category Chip -->
             <span
               v-if="filters.category !== 'all'"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-elevated-card border border-border/60 px-2.5 py-1 text-[11px] text-text-primary"
+              class="inline-flex items-center gap-1.5 rounded-full bg-elevated/80 border border-border/50 px-3 py-1 text-[11px] text-text-primary"
             >
               <Tag class="h-3 w-3 text-secondary" />
-              <span>Category: {{ currentCategoryName }}</span>
-              <button
-                type="button"
-                class="hover:text-primary transition"
-                title="Hapus filter kategori"
-                @click="applyCategory('all')"
-              >
+              <span>{{ currentCategoryName }}</span>
+              <button class="ml-0.5 hover:text-primary transition-colors" @click="applyCategory('all')">
                 <X class="h-3 w-3" />
               </button>
             </span>
 
-            <!-- Type Chip -->
             <span
               v-if="filters.type !== 'all'"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-elevated-card border border-border/60 px-2.5 py-1 text-[11px] text-text-primary"
+              class="inline-flex items-center gap-1.5 rounded-full bg-elevated/80 border border-border/50 px-3 py-1 text-[11px] text-text-primary"
             >
               <Sparkles class="h-3 w-3 text-secondary" />
-              <span>Type: {{ currentTypeName }}</span>
-              <button
-                type="button"
-                class="hover:text-primary transition"
-                title="Hapus filter tipe"
-                @click="applyType('all')"
-              >
+              <span>{{ currentTypeName }}</span>
+              <button class="ml-0.5 hover:text-primary transition-colors" @click="applyType('all')">
                 <X class="h-3 w-3" />
               </button>
             </span>
 
-            <!-- Pricing Model Chip -->
             <span
               v-if="filters.pricing !== 'all'"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-elevated-card border border-border/60 px-2.5 py-1 text-[11px] text-text-primary"
+              class="inline-flex items-center gap-1.5 rounded-full bg-elevated/80 border border-border/50 px-3 py-1 text-[11px] text-text-primary"
             >
               <Coins v-if="filters.pricing === 'paid'" class="h-3 w-3 text-secondary" />
               <Gift v-else class="h-3 w-3 text-secondary" />
-              <span>Pricing: {{ filters.pricing === 'free' ? 'Free Only' : 'Paid Only' }}</span>
-              <button
-                type="button"
-                class="hover:text-primary transition"
-                title="Hapus filter harga"
-                @click="applyPricing('all')"
-              >
+              <span>{{ filters.pricing === 'free' ? 'Free' : 'Paid' }}</span>
+              <button class="ml-0.5 hover:text-primary transition-colors" @click="applyPricing('all')">
                 <X class="h-3 w-3" />
               </button>
             </span>
 
-            <!-- Price Range Chip -->
             <span
               v-if="filters.minPrice !== undefined || filters.maxPrice !== undefined"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-elevated-card border border-border/60 px-2.5 py-1 text-[11px] text-text-primary"
+              class="inline-flex items-center gap-1.5 rounded-full bg-elevated/80 border border-border/50 px-3 py-1 text-[11px] text-text-primary"
             >
               <span>
-                Price:
                 {{ filters.minPrice !== undefined ? formatPriceShort(filters.minPrice) : 'Rp 0' }}
                 –
-                {{ filters.maxPrice !== undefined ? formatPriceShort(filters.maxPrice) : 'Any' }}
+                {{ filters.maxPrice !== undefined ? formatPriceShort(filters.maxPrice) : '∞' }}
               </span>
-              <button
-                type="button"
-                class="hover:text-primary transition"
-                title="Hapus rentang harga"
-                @click="clearPriceFilter"
-              >
+              <button class="ml-0.5 hover:text-primary transition-colors" @click="clearPriceFilter">
                 <X class="h-3 w-3" />
               </button>
             </span>
 
-            <!-- Reset All Action Button -->
             <button
               type="button"
-              class="inline-flex items-center gap-1 text-[11px] text-secondary hover:text-secondary-hover font-semibold ml-auto transition px-2 py-1 rounded hover:bg-secondary/10"
+              class="inline-flex items-center gap-1.5 text-[11px] text-secondary hover:text-secondary-hover font-semibold ml-1 transition-colors"
               @click="resetAllFilters"
             >
               <RotateCcw class="h-3 w-3" />
-              <span>Reset All</span>
+              Clear all
             </button>
           </div>
 
-          <!-- ═══ LOADING: Skeleton Grid ═══ -->
-          <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-7">
+          <!-- Loading Skeleton -->
+          <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 xl:gap-6">
             <AssetCardSkeleton v-for="n in 9" :key="n" />
           </div>
 
-          <!-- ═══ ERROR STATE ═══ -->
+          <!-- Error State -->
           <div
             v-else-if="isError"
             class="rounded-2xl border border-primary/20 bg-primary/5 p-16 text-center"
           >
-            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mb-5">
-              <AlertCircle class="h-8 w-8 text-primary" />
+            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 mb-4">
+              <AlertCircle class="h-7 w-7 text-primary" />
             </div>
-            <h3 class="font-heading text-2xl font-bold text-text-primary mb-2">
-              Failed to Load Catalog
-            </h3>
+            <h3 class="font-heading text-2xl font-bold text-text-primary mb-2">Failed to Load</h3>
             <p class="max-w-md mx-auto text-[13px] text-text-secondary leading-relaxed mb-6">
               {{ errorMessage }}
             </p>
@@ -832,76 +787,76 @@ function visiblePages(): number[] {
             </button>
           </div>
 
-          <!-- ═══ EMPTY STATE ═══ -->
+          <!-- Empty State -->
           <EmptyState
             v-else-if="assets.length === 0"
             icon="search"
             icon-color="secondary"
-            title="Tidak Ada Aset yang Ditemukan"
-            description="Tidak ada aset digital yang cocok dengan kata kunci atau kombinasi filter saat ini. Coba atur ulang parameter atau eksplorasi kategori kurasi lainnya."
-            action-text="Reset Semua Filter"
+            title="Tidak Ada Aset Ditemukan"
+            description="Tidak ada aset yang cocok dengan filter saat ini. Coba kata kunci lain atau reset filter."
+            action-text="Reset Filter"
             :action-icon="RotateCcw"
             action-variant="secondary"
             @action="resetAllFilters"
           />
 
-          <!-- ═══ RESULTS GRID ═══ -->
-          <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-7">
+          <!-- Asset Grid -->
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 xl:gap-6">
             <div
               v-for="(item, index) in assets"
               :key="item.id"
               class="animate-fade-in-up"
-              :style="{ animationDelay: `${index * 40}ms` }"
+              :style="{ animationDelay: `${index * 35}ms` }"
             >
               <AssetCard :asset="item" />
             </div>
           </div>
 
-          <!-- ═══ PAGINATION ═══ -->
+          <!-- Pagination -->
           <div
             v-if="pagination.totalPages > 1 && !isLoading"
-            class="mt-14 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/30 pt-8"
+            class="mt-14 flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-border/30"
           >
-            <div class="text-[12px] text-text-muted">
-              Page <span class="font-bold text-text-primary tabular-nums">{{ pagination.page }}</span> of
+            <p class="text-[11px] text-text-muted">
+              Page
+              <span class="font-bold text-text-primary tabular-nums">{{ pagination.page }}</span>
+              of
               <span class="font-bold text-text-primary tabular-nums">{{ pagination.totalPages }}</span>
-              (<span class="tabular-nums">{{ pagination.total }}</span> total assets)
-            </div>
+            </p>
 
             <div class="flex items-center gap-1">
-              <!-- First page -->
+              <!-- First -->
               <button
                 v-if="pagination.totalPages > 5 && pagination.page > 3"
                 type="button"
-                class="flex h-9 w-9 items-center justify-center rounded-lg text-[12px] text-text-muted hover:text-text-primary hover:bg-elevated-subtle transition"
-                title="First Page"
+                class="flex h-8 w-8 items-center justify-center rounded-lg text-[11px] text-text-muted hover:text-text-primary hover:bg-elevated/50 transition"
                 @click="goToPage(1)"
               >
-                <ChevronsLeft class="h-4 w-4" />
+                <ChevronsLeft class="h-3.5 w-3.5" />
               </button>
 
               <!-- Prev -->
               <button
                 type="button"
                 :disabled="pagination.page <= 1"
-                class="flex h-9 items-center gap-1 rounded-lg border border-border/40 bg-elevated-card px-3 text-[12px] font-medium text-text-primary hover:border-border-hover disabled:opacity-30 disabled:pointer-events-none transition"
+                class="flex h-8 items-center gap-1 rounded-lg border border-border/40 bg-elevated/60 px-2.5 text-[11px] font-medium text-text-primary hover:border-border disabled:opacity-30 disabled:pointer-events-none transition"
                 @click="goToPage(pagination.page - 1)"
               >
-                <ChevronLeft class="h-4 w-4" />
+                <ChevronLeft class="h-3.5 w-3.5" />
                 <span class="hidden sm:inline">Prev</span>
               </button>
 
-              <!-- Page Numbers -->
-              <div class="flex items-center gap-1">
+              <!-- Pages -->
+              <div class="flex items-center gap-0.5">
                 <button
                   v-for="p in visiblePages()"
                   :key="p"
                   type="button"
-                  class="h-9 w-9 rounded-lg text-[12px] font-medium transition-all duration-200"
+                  class="h-8 w-8 rounded-lg text-[11px] font-medium transition-all duration-150"
                   :class="
                     pagination.page === p
-                      ? 'bg-text-primary text-background font-bold'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-elevated-subtle'
+                      ? 'bg-text-primary text-background font-bold shadow-sm'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-elevated/50'
                   "
                   @click="goToPage(p)"
                 >
@@ -913,22 +868,21 @@ function visiblePages(): number[] {
               <button
                 type="button"
                 :disabled="pagination.page >= pagination.totalPages"
-                class="flex h-9 items-center gap-1 rounded-lg border border-border/40 bg-elevated-card px-3 text-[12px] font-medium text-text-primary hover:border-border-hover disabled:opacity-30 disabled:pointer-events-none transition"
+                class="flex h-8 items-center gap-1 rounded-lg border border-border/40 bg-elevated/60 px-2.5 text-[11px] font-medium text-text-primary hover:border-border disabled:opacity-30 disabled:pointer-events-none transition"
                 @click="goToPage(pagination.page + 1)"
               >
                 <span class="hidden sm:inline">Next</span>
-                <ChevronRight class="h-4 w-4" />
+                <ChevronRight class="h-3.5 w-3.5" />
               </button>
 
-              <!-- Last page -->
+              <!-- Last -->
               <button
                 v-if="pagination.totalPages > 5 && pagination.page < pagination.totalPages - 2"
                 type="button"
-                class="flex h-9 w-9 items-center justify-center rounded-lg text-[12px] text-text-muted hover:text-text-primary hover:bg-elevated-subtle transition"
-                title="Last Page"
+                class="flex h-8 w-8 items-center justify-center rounded-lg text-[11px] text-text-muted hover:text-text-primary hover:bg-elevated/50 transition"
                 @click="goToPage(pagination.totalPages)"
               >
-                <ChevronsRight class="h-4 w-4" />
+                <ChevronsRight class="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
@@ -936,130 +890,104 @@ function visiblePages(): number[] {
       </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════
-         MOBILE FILTER SLIDE-OVER DRAWER MODAL
-         ═══════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════
+         MOBILE FILTER DRAWER
+         ═══════════════════════════════ -->
     <div
       v-if="mobileFilterOpen"
       class="fixed inset-0 z-50 lg:hidden flex justify-end animate-fade-in"
     >
-      <!-- Backdrop -->
       <div
-        class="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
+        class="fixed inset-0 bg-background/70 backdrop-blur-sm transition-opacity"
         @click="mobileFilterOpen = false"
       ></div>
 
-      <!-- Slide-over Drawer Panel -->
-      <div
-        class="relative w-full max-w-sm bg-elevated-card border-l border-border/50 h-full flex flex-col shadow-2xl z-10 overflow-hidden"
-      >
-        <!-- Drawer Header -->
+      <div class="relative w-full max-w-xs bg-elevated-card border-l border-border/50 h-full flex flex-col shadow-2xl z-10 overflow-hidden">
+        <!-- Drawer header -->
         <div class="flex items-center justify-between p-5 border-b border-border/40 shrink-0">
-          <div class="flex items-center gap-2 font-heading text-lg font-bold text-text-primary">
-            <SlidersHorizontal class="h-5 w-5 text-secondary" />
-            <span>Filter Catalog</span>
+          <div class="flex items-center gap-2.5">
+            <SlidersHorizontal class="h-4.5 w-4.5 text-secondary" />
+            <span class="text-[13px] font-bold text-text-primary">Filters</span>
             <span
               v-if="activeFilterCount > 0"
-              class="rounded-full bg-secondary text-background text-[10px] font-bold px-2 py-0.5"
+              class="flex h-5 w-5 items-center justify-center rounded-full bg-secondary/20 text-secondary text-[10px] font-bold"
             >
               {{ activeFilterCount }}
             </span>
           </div>
           <button
             type="button"
-            class="h-8 w-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-elevated-subtle transition"
+            class="h-8 w-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-elevated/50 transition"
             @click="mobileFilterOpen = false"
           >
-            <X class="h-5 w-5" />
+            <X class="h-4.5 w-4.5" />
           </button>
         </div>
 
-        <!-- Drawer Body (Scrollable) -->
-        <div class="p-5 space-y-6 overflow-y-auto flex-1">
-          <!-- Pricing Model -->
+        <!-- Drawer body -->
+        <div class="p-5 space-y-5 overflow-y-auto flex-1">
+
+          <!-- Pricing -->
           <div>
-            <h4 class="text-[11px] font-bold uppercase tracking-[0.15em] text-text-muted mb-3">
-              Pricing Model
-            </h4>
-            <div class="grid grid-cols-3 gap-1 rounded-xl bg-background p-1 border border-border/40">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-2.5">Pricing</p>
+            <div class="grid grid-cols-3 gap-1 rounded-xl bg-background/80 p-1 border border-border/30">
               <button
                 v-for="opt in pricingOptions"
                 :key="opt.id"
                 type="button"
-                class="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[11px] font-medium transition-all"
+                class="flex flex-col items-center justify-center py-2 rounded-lg text-[10px] font-semibold transition-all"
                 :class="
                   filters.pricing === opt.id
-                    ? 'bg-elevated text-secondary font-semibold border border-border/50'
+                    ? 'bg-elevated text-secondary border border-border/60'
                     : 'text-text-muted hover:text-text-primary'
                 "
                 @click="applyPricing(opt.id)"
               >
                 <component :is="opt.icon" class="h-3.5 w-3.5 mb-1 opacity-80" />
-                <span>{{ opt.label.replace(' Only', '').replace(' Assets', '') }}</span>
+                <span>{{ opt.label }}</span>
               </button>
             </div>
           </div>
 
-          <!-- Category Selection -->
+          <!-- Category -->
           <div>
-            <h4 class="text-[11px] font-bold uppercase tracking-[0.15em] text-text-muted mb-3">
-              Category
-            </h4>
-            <div class="space-y-1 max-h-44 overflow-y-auto pr-1">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-2.5">Category</p>
+            <div class="space-y-0.5 max-h-40 overflow-y-auto pr-1">
               <button
-                type="button"
-                class="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[12px] text-left transition"
-                :class="
-                  filters.category === 'all'
-                    ? 'bg-secondary/10 text-secondary font-semibold border border-secondary/20'
-                    : 'text-text-secondary hover:bg-elevated-subtle'
-                "
-                @click="applyCategory('all')"
-              >
-                <span>All Categories</span>
-                <Check v-if="filters.category === 'all'" class="h-3.5 w-3.5 text-secondary" />
-              </button>
-
-              <button
-                v-for="cat in categories"
+                v-for="cat in [{ id: 'all', slug: 'all', name: 'All Categories', assetCount: undefined }, ...categories]"
                 :key="cat.id"
                 type="button"
-                class="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[12px] text-left transition"
+                class="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[11px] transition-all"
                 :class="
-                  filters.category === cat.slug || filters.category === cat.id
-                    ? 'bg-secondary/10 text-secondary font-semibold border border-secondary/20'
-                    : 'text-text-secondary hover:bg-elevated-subtle'
+                  filters.category === cat.slug
+                    ? 'bg-secondary/10 text-secondary font-semibold'
+                    : 'text-text-secondary hover:bg-elevated/50'
                 "
                 @click="applyCategory(cat.slug)"
               >
                 <span>{{ cat.name }}</span>
-                <Check
-                  v-if="filters.category === cat.slug || filters.category === cat.id"
-                  class="h-3.5 w-3.5 text-secondary"
-                />
+                <Check v-if="filters.category === cat.slug" class="h-3.5 w-3.5 text-secondary" />
               </button>
             </div>
           </div>
 
           <!-- Asset Type -->
           <div>
-            <h4 class="text-[11px] font-bold uppercase tracking-[0.15em] text-text-muted mb-3">
-              Asset Type
-            </h4>
-            <div class="space-y-1">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-2.5">Type</p>
+            <div class="space-y-0.5">
               <button
                 v-for="t in assetTypes"
                 :key="t.id"
                 type="button"
-                class="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[12px] text-left transition"
+                class="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[11px] transition-all"
                 :class="
                   filters.type === t.id
-                    ? 'bg-secondary/10 text-secondary font-semibold border border-secondary/20'
-                    : 'text-text-secondary hover:bg-elevated-subtle'
+                    ? 'bg-secondary/10 text-secondary font-semibold'
+                    : 'text-text-secondary hover:bg-elevated/50'
                 "
                 @click="applyType(t.id)"
               >
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2.5">
                   <component :is="t.icon" class="h-3.5 w-3.5 shrink-0 opacity-70" />
                   <span>{{ t.label }}</span>
                 </div>
@@ -1069,28 +997,24 @@ function visiblePages(): number[] {
           </div>
 
           <!-- Price Range -->
-          <div class="border-t border-border/30 pt-4">
-            <h4 class="text-[11px] font-bold uppercase tracking-[0.15em] text-text-muted mb-3">
-              Price Range
-            </h4>
-            <div class="space-y-1 mb-3">
+          <div class="pt-4 border-t border-border/30">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted mb-2.5">Price Range</p>
+            <div class="space-y-0.5 mb-3">
               <button
                 v-for="preset in pricePresets"
                 :key="preset.label"
                 type="button"
-                class="w-full text-left rounded-lg px-3 py-1.5 text-[12px] transition"
+                class="w-full text-left rounded-lg px-3 py-1.5 text-[11px] transition-all"
                 :class="
                   filters.minPrice === preset.min && filters.maxPrice === preset.max
-                    ? 'text-secondary font-semibold bg-secondary/10 border border-secondary/20'
-                    : 'text-text-secondary hover:bg-elevated-subtle'
+                    ? 'text-secondary font-semibold bg-secondary/10'
+                    : 'text-text-secondary hover:bg-elevated/50'
                 "
                 @click="applyPricePreset(preset.min, preset.max)"
               >
                 {{ preset.label }}
               </button>
             </div>
-
-            <!-- Custom Min/Max Inputs -->
             <div class="space-y-2 pt-2 border-t border-border/20">
               <div class="grid grid-cols-2 gap-2">
                 <input
@@ -1098,35 +1022,35 @@ function visiblePages(): number[] {
                   type="number"
                   placeholder="Min (Rp)"
                   min="0"
-                  class="w-full rounded-lg border border-border/40 bg-background py-2 px-2.5 text-[11px] text-text-primary placeholder-text-muted focus:border-secondary/50 focus:outline-none transition"
+                  class="w-full rounded-lg border border-border/40 bg-background/80 py-2 px-2.5 text-[11px] text-text-primary placeholder-text-muted/50 focus:border-secondary/50 focus:outline-none transition-colors"
                 />
                 <input
                   v-model.number="localMaxPrice"
                   type="number"
                   placeholder="Max (Rp)"
                   min="0"
-                  class="w-full rounded-lg border border-border/40 bg-background py-2 px-2.5 text-[11px] text-text-primary placeholder-text-muted focus:border-secondary/50 focus:outline-none transition"
+                  class="w-full rounded-lg border border-border/40 bg-background/80 py-2 px-2.5 text-[11px] text-text-primary placeholder-text-muted/50 focus:border-secondary/50 focus:outline-none transition-colors"
                 />
               </div>
               <button
                 type="button"
-                class="w-full rounded-lg bg-elevated-subtle py-2 text-[11px] font-semibold text-text-primary transition"
+                class="w-full rounded-lg bg-elevated/50 py-2 text-[11px] font-semibold text-text-secondary hover:text-text-primary transition-colors"
                 @click="applyCustomPrice"
               >
-                Apply Custom Price
+                Apply Price
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Drawer Footer (Sticky Actions) -->
+        <!-- Drawer footer -->
         <div class="p-4 border-t border-border/40 bg-elevated/60 shrink-0 flex items-center gap-3">
           <button
             type="button"
-            class="flex-1 rounded-xl border border-border/50 py-2.5 text-[12px] font-semibold text-text-muted hover:text-text-primary transition"
+            class="flex-1 rounded-xl border border-border/50 py-2.5 text-[12px] font-semibold text-text-muted hover:text-text-primary transition-colors"
             @click="resetAllFilters"
           >
-            Reset All
+            Reset
           </button>
           <button
             type="button"
@@ -1138,5 +1062,6 @@ function visiblePages(): number[] {
         </div>
       </div>
     </div>
+
   </div>
 </template>

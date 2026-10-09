@@ -171,7 +171,7 @@ async function main() {
                 title: assetTitle,
                 slug: assetSlug,
                 shortDescription: 'Sistem desain editorial eksklusif dengan estetika high-fashion, tipografi terkurasi, dan komponen UI siap pakai.',
-                description: 'Atelier Noir adalah digital design system yang dirancang khusus untuk brand mewah dan platform digital premium. Dilengkapi dengan token warna HSL terkurasi, tipografi Instrument Serif & Satoshi, serta puluhan komponen UI siap pakai.',
+                description: 'Atelier Noir adalah digital design system yang dirancang khusus untuk brand mewah dan platform digital premium. Dilengkapi dengan token warna HSL terkurasi, tipografi Fraunces & Plus Jakarta Sans, serta puluhan komponen UI siap pakai.',
                 assetType: 'ui_template',
                 status: 'approved',
                 price: '350000.00',

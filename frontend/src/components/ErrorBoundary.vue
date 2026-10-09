@@ -61,7 +61,7 @@ const handleGoHome = () => {
       </div>
 
       <!-- Error Title -->
-      <h2 class="text-xl font-semibold text-white mb-2">Oops! Terjadi Kesalahan</h2>
+      <h2 class="font-heading text-xl font-bold text-text-primary mb-2">Oops! Terjadi Kesalahan</h2>
 
       <!-- Error Message -->
       <p class="text-[#888] mb-4">{{ errorMessage }}</p>
