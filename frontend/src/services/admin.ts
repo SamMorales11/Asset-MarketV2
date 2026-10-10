@@ -10,6 +10,7 @@ import type {
   AdminAccountDetail,
   CreateAdminPayload,
   UpdateAdminPayload,
+  AuditTrailResponse,
 } from '../types';
 
 export const adminService = {
@@ -85,6 +86,24 @@ export const adminService = {
     const res = await apiClient.get<ApiResponse<AdminUserRevenueDetail>>(`/admin/revenue/users/${id}`);
     if (!res.data.data) {
       throw new Error(res.data.message || 'Gagal memuat rincian revenue pengguna');
+    }
+    return res.data.data;
+  },
+
+  /**
+   * Audit Trail Activity Logs
+   */
+  async getAuditLogs(params?: {
+    page?: number;
+    limit?: number;
+    action?: string;
+    targetEntity?: string;
+    adminId?: string;
+    search?: string;
+  }): Promise<AuditTrailResponse> {
+    const res = await apiClient.get<ApiResponse<AuditTrailResponse>>('/admin/audit-logs', { params });
+    if (!res.data.data) {
+      throw new Error(res.data.message || 'Gagal memuat log audit admin');
     }
     return res.data.data;
   },

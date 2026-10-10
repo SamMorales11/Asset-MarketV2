@@ -1392,6 +1392,149 @@ adminRoutes.get('/revenue/users/:id', async (c) => {
 
 /**
  * =========================================================================
+ * AUDIT TRAIL LOGS
+ * Accessible by both 'admin' and 'superadmin' roles
+ * =========================================================================
+ */
+
+/**
+ * GET /admin/audit-logs
+ * Paginated list of audit action logs with search, action type, entity, and admin filters
+ */
+adminRoutes.get('/audit-logs', async (c) => {
+  try {
+    const page = Math.max(1, parseInt(c.req.query('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '20')));
+    const offset = (page - 1) * limit;
+    const actionFilter = c.req.query('action');
+    const entityFilter = c.req.query('targetEntity');
+    const adminIdFilter = c.req.query('adminId');
+    const search = (c.req.query('search') || '').trim();
+
+    const conditions: any[] = [];
+
+    if (actionFilter && actionFilter !== 'all') {
+      conditions.push(eq(adminActions.action, actionFilter));
+    }
+
+    if (entityFilter && entityFilter !== 'all') {
+      conditions.push(eq(adminActions.targetEntity, entityFilter));
+    }
+
+    if (adminIdFilter && adminIdFilter !== 'all') {
+      conditions.push(eq(adminActions.adminId, adminIdFilter));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          ilike(adminActions.action, `%${search}%`),
+          ilike(adminActions.targetEntity, `%${search}%`),
+          ilike(adminActions.targetId, `%${search}%`),
+          ilike(adminActions.notes, `%${search}%`),
+          ilike(users.name, `%${search}%`),
+          ilike(users.email, `%${search}%`)
+        )
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Total Count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(adminActions)
+      .leftJoin(users, eq(adminActions.adminId, users.id))
+      .where(whereClause);
+    const total = countResult?.count || 0;
+
+    // Stats breakdown
+    const [totalApprovals] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(adminActions)
+      .where(or(eq(adminActions.action, 'ASSET_APPROVE'), eq(adminActions.action, 'APPROVE_ASSET')));
+
+    const [totalRejections] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(adminActions)
+      .where(or(eq(adminActions.action, 'ASSET_REJECT'), eq(adminActions.action, 'REJECT_ASSET')));
+
+    const [totalPayments] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(adminActions)
+      .where(or(eq(adminActions.action, 'PAYMENT_VERIFY'), eq(adminActions.action, 'VERIFY_PAYMENT'), eq(adminActions.action, 'PAYMENT_REJECT'), eq(adminActions.action, 'REJECT_PAYMENT')));
+
+    const [totalUsersManaged] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(adminActions)
+      .where(or(eq(adminActions.targetEntity, 'user'), eq(adminActions.targetEntity, 'users')));
+
+    // Paginated audit logs with joined admin user details
+    const logs = await db
+      .select({
+        id: adminActions.id,
+        adminId: adminActions.adminId,
+        action: adminActions.action,
+        targetEntity: adminActions.targetEntity,
+        targetId: adminActions.targetId,
+        oldValues: adminActions.oldValues,
+        newValues: adminActions.newValues,
+        ipAddress: adminActions.ipAddress,
+        userAgent: adminActions.userAgent,
+        notes: adminActions.notes,
+        createdAt: adminActions.createdAt,
+        adminName: users.name,
+        adminEmail: users.email,
+        adminRole: users.role,
+        adminAvatarUrl: users.avatarUrl,
+      })
+      .from(adminActions)
+      .leftJoin(users, eq(adminActions.adminId, users.id))
+      .where(whereClause)
+      .orderBy(desc(adminActions.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // List of unique admins for filter dropdown
+    const activeAdmins = await db
+      .selectDistinct({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+      })
+      .from(adminActions)
+      .leftJoin(users, eq(adminActions.adminId, users.id))
+      .where(isNotNull(users.id));
+
+    return c.json({
+      success: true,
+      data: {
+        logs,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+        stats: {
+          totalActions: total,
+          totalApprovals: totalApprovals?.count || 0,
+          totalRejections: totalRejections?.count || 0,
+          totalPayments: totalPayments?.count || 0,
+          totalUsersManaged: totalUsersManaged?.count || 0,
+        },
+        availableAdmins: activeAdmins,
+      },
+    });
+  } catch (error: any) {
+    const appError = handleError(error, 'Admin/audit-logs');
+    return c.json(appError.toJSON(), appError.statusCode as any);
+  }
+});
+
+/**
+ * =========================================================================
  * SUPERADMIN ONLY: MANAGE ADMINS (CRUD)
  * Strictly restricted to role: 'superadmin'
  * =========================================================================

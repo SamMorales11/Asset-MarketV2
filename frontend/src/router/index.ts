@@ -257,6 +257,25 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/admin/audit',
+    name: 'AdminAuditTrail',
+    component: () => import('../pages/AdminAuditTrailPage.vue'),
+    meta: {
+      title: 'Admin Audit Trail & Activity Log — Asset Market',
+      description: 'Log audit permanen aktivitas administrator marketplace, verifikasi pembayaran escrow, kurasi aset, dan tata kelola akun pengguna.',
+      requiresAuth: true,
+      roles: ['admin', 'superadmin'],
+    },
+  },
+  {
+    path: '/admin/audit-trail',
+    redirect: '/admin/audit',
+  },
+  {
+    path: '/admin/logs',
+    redirect: '/admin/audit',
+  },
+  {
     path: '/admin/admins',
     name: 'AdminManageAdmins',
     component: () => import('../pages/AdminManageAdminsPage.vue'),

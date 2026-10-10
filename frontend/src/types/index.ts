@@ -523,6 +523,44 @@ export interface AdminActionAuditLog {
   createdAt: string;
 }
 
+export interface AuditTrailLogItem {
+  id: string;
+  adminId: string;
+  action: string;
+  targetEntity: string;
+  targetId: string;
+  oldValues?: any;
+  newValues?: any;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  adminName?: string | null;
+  adminEmail?: string | null;
+  adminRole?: string | null;
+  adminAvatarUrl?: string | null;
+}
+
+export interface AuditTrailStats {
+  totalActions: number;
+  totalApprovals: number;
+  totalRejections: number;
+  totalPayments: number;
+  totalUsersManaged: number;
+}
+
+export interface AuditTrailResponse {
+  logs: AuditTrailLogItem[];
+  pagination: Pagination;
+  stats: AuditTrailStats;
+  availableAdmins: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }>;
+}
+
 export interface AdminAccountDetail {
   admin: AdminAccountItem;
   actions: AdminActionAuditLog[];

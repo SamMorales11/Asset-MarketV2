@@ -506,6 +506,13 @@ const currentDate = new Date().toLocaleDateString('id-ID', {
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
+                  <router-link
+                    to="/admin/audit"
+                    class="rounded-lg bg-surface border border-border/60 hover:border-secondary/50 px-2.5 py-1 text-[10px] font-semibold text-secondary hover:text-secondary-light transition flex items-center gap-1"
+                  >
+                    <span>Buka Log Lengkap</span>
+                    <ArrowUpRight class="h-3 w-3" />
+                  </router-link>
                   <span class="rounded bg-surface border border-border/60 px-2.5 py-1 text-[10px] font-mono text-text-muted flex items-center gap-1">
                     <Server class="h-3 w-3" />
                     Append-only

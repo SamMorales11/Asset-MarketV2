@@ -9,6 +9,7 @@ import {
   Coins,
   ShieldAlert,
   UserCog,
+  Activity,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -35,6 +36,11 @@ const adminTabs = computed(() => {
       name: 'User Revenue (60/40)',
       path: '/admin/revenue',
       icon: Coins,
+    },
+    {
+      name: 'Audit Trail',
+      path: '/admin/audit',
+      icon: Activity,
     },
   ];
 
