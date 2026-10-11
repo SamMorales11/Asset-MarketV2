@@ -19,27 +19,18 @@ import {
   ArrowUpRight,
   Activity,
   Zap,
-  TrendingDown,
   BarChart3,
   ChevronRight,
-  Globe,
   Server,
-  Eye,
   ArrowUp,
-  ArrowDown,
 } from 'lucide-vue-next';
 
 const dashboardData = ref<AdminDashboardData | null>(null);
 const isLoading = ref(true);
 const errorMessage = ref<string | null>(null);
 
-// Animated counter state
-const countersReady = ref(false);
-
 onMounted(async () => {
   await loadDashboard();
-  // Trigger counter animation on mount
-  setTimeout(() => { countersReady.value = true; }, 100);
 });
 
 async function loadDashboard() {
@@ -69,9 +60,6 @@ function formatTime(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-function formatDateTime(iso: string): string {
-  return `${formatDate(iso)}, ${formatTime(iso)}`;
 }
 
 // Revenue mini chart data (mock % distribution for visual)
