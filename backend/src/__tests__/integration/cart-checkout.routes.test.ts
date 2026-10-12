@@ -3,6 +3,12 @@ import { app } from '../../app.js';
 import { db } from '../../db/index.js';
 import { assets } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
+import {
+  AuthTokenResponse,
+  CartResponse,
+  CheckoutResponse,
+  GenericResponse,
+} from './types.js';
 
 describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', () => {
   let buyerToken: string;
@@ -21,8 +27,8 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
         password: 'Password123!',
       }),
     });
-    const buyerData = await buyerRes.json();
-    buyerToken = buyerData.data?.accessToken;
+    const buyerData = await buyerRes.json() as AuthTokenResponse;
+    buyerToken = buyerData.data!.accessToken;
 
     // 2. Find an approved asset from database
     const [existingAsset] = await db
@@ -48,9 +54,9 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as CartResponse;
       expect(body.success).toBe(true);
-      expect(body.data.items.length).toBe(0);
+      expect(body.data!.items.length).toBe(0);
     });
 
     it('adds an asset to the cart successfully', async () => {
@@ -64,7 +70,7 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
       });
 
       expect([200, 201]).toContain(res.status);
-      const body = await res.json();
+      const body = await res.json() as CartResponse;
       expect(body.success).toBe(true);
     });
 
@@ -79,9 +85,9 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as CartResponse;
       expect(body.success).toBe(true);
-      expect(body.data.alreadyInCart).toBe(true);
+      expect(body.data!.alreadyInCart).toBe(true);
       expect(body.message).toContain('already in your cart');
     });
 
@@ -91,10 +97,10 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as CartResponse;
       expect(body.success).toBe(true);
-      expect(body.data.items.length).toBe(1);
-      expect(body.data.items[0].assetId).toBe(testAssetId);
+      expect(body.data!.items.length).toBe(1);
+      expect(body.data!.items[0]!.assetId).toBe(testAssetId);
     });
   });
 
@@ -123,10 +129,10 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
       });
 
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = await res.json() as CheckoutResponse;
       expect(body.success).toBe(true);
       generatedInvoiceNumber =
-        body.data?.invoiceNumber || body.data?.transaction?.invoiceNumber;
+        body.data?.invoiceNumber || (body.data as any)?.transaction?.invoiceNumber;
       expect(generatedInvoiceNumber).toBeDefined();
       expect(generatedInvoiceNumber.startsWith('INV-')).toBe(true);
     });
@@ -137,8 +143,8 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.data.items.length).toBe(0);
+      const body = await res.json() as CartResponse;
+      expect(body.data!.items.length).toBe(0);
     });
 
     it('rejects checkout when cart is empty with 400', async () => {
@@ -152,9 +158,9 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(false);
-      expect(body.message.toLowerCase()).toContain('empty');
+      expect(body.message?.toLowerCase()).toContain('empty');
     });
 
     it('retrieves invoice details by invoice number with pending status', async () => {
@@ -163,10 +169,10 @@ describe('Cart & Checkout Flow Integration Tests (/api/cart & /api/checkout)', (
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(true);
-      expect(body.data.transaction.invoiceNumber).toBe(generatedInvoiceNumber);
-      expect(body.data.transaction.status).toBe('pending');
+      expect((body.data as any).transaction.invoiceNumber).toBe(generatedInvoiceNumber);
+      expect((body.data as any).transaction.status).toBe('pending');
     });
   });
 });

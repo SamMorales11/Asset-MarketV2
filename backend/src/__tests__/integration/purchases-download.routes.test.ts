@@ -2,6 +2,11 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { app } from '../../app.js';
 import { db } from '../../db/index.js';
 import { categories } from '../../db/schema.js';
+import {
+  AuthTokenResponse,
+  PurchaseListResponse,
+  GenericResponse,
+} from './types.js';
 
 describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
   let sellerToken: string;
@@ -23,7 +28,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
         password: 'Password123!',
       }),
     });
-    sellerToken = (await sellerRes.json()).data?.accessToken;
+    sellerToken = (await sellerRes.json() as AuthTokenResponse).data!.accessToken;
 
     // 2. Buyer
     const buyerRes = await app.request('/api/auth/register', {
@@ -35,7 +40,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
         password: 'Password123!',
       }),
     });
-    buyerToken = (await buyerRes.json()).data?.accessToken;
+    buyerToken = (await buyerRes.json() as AuthTokenResponse).data!.accessToken;
 
     // 3. Stranger (has not bought)
     const strangerRes = await app.request('/api/auth/register', {
@@ -47,7 +52,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
         password: 'Password123!',
       }),
     });
-    strangerToken = (await strangerRes.json()).data?.accessToken;
+    strangerToken = (await strangerRes.json() as AuthTokenResponse).data!.accessToken;
 
     // 4. Admin
     const adminRes = await app.request('/api/auth/login', {
@@ -58,7 +63,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
         password: 'Admin123!',
       }),
     });
-    adminToken = (await adminRes.json()).data?.accessToken;
+    adminToken = (await adminRes.json() as AuthTokenResponse).data!.accessToken;
 
     // 5. Upload asset
     const [cat] = await db.select().from(categories).limit(1);
@@ -79,7 +84,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
       headers: { Authorization: `Bearer ${sellerToken}` },
       body: form,
     });
-    assetId = (await uploadRes.json()).data?.asset?.id;
+    assetId = (await uploadRes.json() as any).data?.asset?.id;
 
     // Approve asset
     await app.request(`/api/admin/assets/${assetId}/approve`, {
@@ -105,7 +110,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
       },
       body: JSON.stringify({ paymentMethod: 'manual_transfer', destinationBank: 'BCA' }),
     });
-    invoiceNumber = (await checkoutRes.json()).data?.invoiceNumber;
+    invoiceNumber = (await checkoutRes.json() as any).data?.invoiceNumber;
 
     const confirmForm = new FormData();
     confirmForm.append('invoiceNumber', invoiceNumber);
@@ -129,7 +134,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
     const pendingQueueRes = await app.request('/api/admin/payments/pending', {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
-    const pendingItem = (await pendingQueueRes.json()).data?.pendingPayments?.find(
+    const pendingItem = (await pendingQueueRes.json() as any).data?.pendingPayments?.find(
       (p: any) => p.transaction.invoiceNumber === invoiceNumber
     );
 
@@ -148,7 +153,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as PurchaseListResponse;
       expect(body.success).toBe(true);
       const hasInvoice = body.data?.purchases?.some(
         (p: any) => p.invoiceNumber === invoiceNumber
@@ -162,7 +167,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as PurchaseListResponse;
       expect(body.data?.purchases?.length).toBe(0);
     });
   });
@@ -174,7 +179,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
       });
 
       expect(res.status).toBe(403);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(false);
       expect(body.message).toContain('Akses Ditolak');
     });
@@ -213,7 +218,7 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
     it('blocks direct URL bypass to protected files with 403', async () => {
       const res = await app.request('/uploads/files/some-deliverable.zip');
       expect(res.status).toBe(403);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(false);
       expect(body.message).toContain('Direct access to digital asset deliverable is forbidden');
     });

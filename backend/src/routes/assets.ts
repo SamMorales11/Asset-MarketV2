@@ -145,7 +145,7 @@ assetRoutes.post('/upload', authMiddleware, async (c) => {
         assetType,
         status: 'pending', // Awaiting Admin Review
         price: price.toFixed(2),
-        discountPrice: discountPrice !== null ? discountPrice.toFixed(2) : null,
+        discountPrice: discountPrice != null ? discountPrice.toFixed(2) : null,
         currency: 'IDR',
         thumbnailUrl: finalThumbnailUrl,
         previewImages: [],
@@ -218,8 +218,8 @@ const handleUpdateAsset = async (c: any) => {
       return c.json({ success: false, message: 'Asset ID is required', code: 'INVALID_INPUT' }, 400);
     }
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assetId);
-    const idCondition = isUuid
+    const isAssetIdUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assetId);
+    const idCondition = isAssetIdUuid
       ? or(eq(assets.id, assetId), eq(assets.slug, assetId))
       : eq(assets.slug, assetId);
 
@@ -297,6 +297,10 @@ const handleUpdateAsset = async (c: any) => {
       .where(eq(assets.id, existing.id))
       .returning();
 
+    if (!updatedAsset) {
+      throw new Error('Failed to update asset record');
+    }
+
     return c.json({
       success: true,
       message: 'Asset metadata updated successfully',
@@ -325,8 +329,8 @@ async function handleAssetModerationSubmission(c: any) {
       return c.json({ success: false, message: 'ID aset wajib disertakan.', code: 'INVALID_INPUT' }, 400);
     }
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assetId);
-    const idCondition = isUuid
+    const isAssetIdUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assetId);
+    const idCondition = isAssetIdUuid
       ? or(eq(assets.id, assetId), eq(assets.slug, assetId))
       : eq(assets.slug, assetId);
 

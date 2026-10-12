@@ -2,6 +2,13 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { app } from '../../app.js';
 import { db } from '../../db/index.js';
 import { categories } from '../../db/schema.js';
+import {
+  AuthTokenResponse,
+  AssetsListResponse,
+  AssetDetailResponse,
+  AssetUploadResponse,
+  GenericResponse,
+} from './types.js';
 
 describe('Asset Catalog & Moderation Routes Integration Tests', () => {
   let sellerToken: string;
@@ -22,8 +29,8 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
         password: 'Password123!',
       }),
     });
-    const sellerData = await sellerRes.json();
-    sellerToken = sellerData.data?.accessToken;
+    const sellerData = await sellerRes.json() as AuthTokenResponse;
+    sellerToken = sellerData.data!.accessToken;
 
     // 2. Register Regular User
     const userRes = await app.request('/api/auth/register', {
@@ -35,8 +42,8 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
         password: 'Password123!',
       }),
     });
-    const userData = await userRes.json();
-    userToken = userData.data?.accessToken;
+    const userData = await userRes.json() as AuthTokenResponse;
+    userToken = userData.data!.accessToken;
 
     // 3. Login Admin
     const adminRes = await app.request('/api/auth/login', {
@@ -47,8 +54,8 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
         password: 'Admin123!',
       }),
     });
-    const adminData = await adminRes.json();
-    adminToken = adminData.data?.accessToken;
+    const adminData = await adminRes.json() as AuthTokenResponse;
+    adminToken = adminData.data!.accessToken;
 
     // 4. Retrieve valid category
     const [cat] = await db.select().from(categories).limit(1);
@@ -60,16 +67,16 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
       const res = await app.request('/api/assets');
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
-      expect(Array.isArray(body.data.assets)).toBe(true);
-      expect(typeof body.data.pagination.total).toBe('number');
+      expect(Array.isArray(body.data!.assets)).toBe(true);
+      expect(typeof body.data!.pagination.total).toBe('number');
     });
 
     it('filters assets by search keyword', async () => {
       const res = await app.request('/api/assets?search=Design');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
     });
   });
@@ -126,17 +133,17 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
       });
 
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = await res.json() as AssetUploadResponse;
       expect(body.success).toBe(true);
-      expect(body.data.asset).toBeDefined();
-      expect(body.data.asset.status).toBe('pending');
-      createdAssetId = body.data.asset.id;
+      expect(body.data!.asset).toBeDefined();
+      expect(body.data!.asset!.status).toBe('pending');
+      createdAssetId = body.data!.asset!.id as string;
     });
 
     it('ensures pending asset is NOT visible in public catalog', async () => {
       const res = await app.request('/api/assets');
-      const body = await res.json();
-      const found = body.data.assets.some((a: any) => a.id === createdAssetId);
+      const body = await res.json() as AssetsListResponse;
+      const found = body.data!.assets.some((a: any) => a.id === createdAssetId);
       expect(found).toBe(false);
     });
   });
@@ -155,9 +162,9 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(true);
-      const found = body.data.pendingAssets.some((a: any) => a.id === createdAssetId);
+      const found = (body.data as any).pendingAssets.some((a: any) => a.id === createdAssetId);
       expect(found).toBe(true);
     });
 
@@ -168,66 +175,66 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetDetailResponse;
       expect(body.success).toBe(true);
-      expect(body.data.asset.status).toBe('approved');
+      expect(body.data!.asset!.status).toBe('approved');
     });
 
     it('verifies approved asset is now listed in public catalog', async () => {
       const res = await app.request('/api/assets');
-      const body = await res.json();
-      const found = body.data.assets.some((a: any) => a.id === createdAssetId);
+      const body = await res.json() as AssetsListResponse;
+      const found = body.data!.assets.some((a: any) => a.id === createdAssetId);
       expect(found).toBe(true);
     });
 
     it('allows public retrieval of approved asset details by ID', async () => {
       const res = await app.request(`/api/assets/${createdAssetId}`);
       expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.data.asset.id).toBe(createdAssetId);
-      expect(body.data.asset.status).toBe('approved');
+      const body = await res.json() as AssetDetailResponse;
+      expect(body.data!.asset!.id).toBe(createdAssetId);
+      expect(body.data!.asset!.status).toBe('approved');
     });
 
     it('searches assets by tag keyword', async () => {
       const res = await app.request('/api/assets?q=Integration');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
-      const found = body.data.assets.some((a: any) => a.id === createdAssetId);
+      const found = body.data!.assets.some((a: any) => a.id === createdAssetId);
       expect(found).toBe(true);
     });
 
     it('filters assets by asset type', async () => {
       const res = await app.request('/api/assets?type=ui_template');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
-      expect(body.data.assets.every((a: any) => a.assetType === 'ui_template')).toBe(true);
+      expect(body.data!.assets.every((a: any) => a.assetType === 'ui_template')).toBe(true);
     });
 
     it('filters assets by paid pricing', async () => {
       const res = await app.request('/api/assets?pricing=paid');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
-      expect(body.data.assets.every((a: any) => Number(a.price) > 0)).toBe(true);
+      expect(body.data!.assets.every((a: any) => Number(a.price) > 0)).toBe(true);
     });
 
     it('filters assets by free pricing', async () => {
       const res = await app.request('/api/assets?pricing=free');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
-      expect(body.data.assets.every((a: any) => Number(a.discountPrice ?? a.price) <= 0)).toBe(true);
+      expect(body.data!.assets.every((a: any) => Number(a.discountPrice ?? a.price) <= 0)).toBe(true);
     });
 
     it('filters assets by valid price range', async () => {
       const res = await app.request('/api/assets?minPrice=150000&maxPrice=250000');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
       expect(
-        body.data.assets.every((a: any) => {
+        body.data!.assets.every((a: any) => {
           const effective = Number(a.discountPrice ?? a.price);
           return effective >= 150000 && effective <= 250000;
         })
@@ -237,41 +244,41 @@ describe('Asset Catalog & Moderation Routes Integration Tests', () => {
     it('rejects inverted price range with 400', async () => {
       const res = await app.request('/api/assets?minPrice=500000&maxPrice=100000');
       expect([400, 422]).toContain(res.status);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(false);
     });
 
     it('sorts assets by price ascending', async () => {
       const res = await app.request('/api/assets?sort=price_asc&limit=10');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
-      const prices = body.data.assets.map((a: any) => Number(a.discountPrice ?? a.price));
+      const prices = body.data!.assets.map((a: any) => Number(a.discountPrice ?? a.price));
       for (let i = 1; i < prices.length; i++) {
-        expect(prices[i]).toBeGreaterThanOrEqual(prices[i - 1]);
+        expect(prices[i]!).toBeGreaterThanOrEqual(prices[i - 1]!);
       }
     });
 
     it('sorts assets by price descending', async () => {
       const res = await app.request('/api/assets?sort=price_desc&limit=10');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
-      const prices = body.data.assets.map((a: any) => Number(a.discountPrice ?? a.price));
+      const prices = body.data!.assets.map((a: any) => Number(a.discountPrice ?? a.price));
       for (let i = 1; i < prices.length; i++) {
-        expect(prices[i]).toBeLessThanOrEqual(prices[i - 1]);
+        expect(prices[i]!).toBeLessThanOrEqual(prices[i - 1]!);
       }
     });
 
     it('supports custom pagination limits and page numbers', async () => {
       const res = await app.request('/api/assets?page=1&limit=2');
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AssetsListResponse;
       expect(body.success).toBe(true);
-      expect(body.data.pagination.page).toBe(1);
-      expect(body.data.pagination.limit).toBe(2);
-      expect(body.data.pagination.totalPages).toBeGreaterThanOrEqual(1);
-      expect(body.data.assets.length).toBeLessThanOrEqual(2);
+      expect(body.data!.pagination.page).toBe(1);
+      expect(body.data!.pagination.limit).toBe(2);
+      expect(body.data!.pagination.totalPages).toBeGreaterThanOrEqual(1);
+      expect(body.data!.assets.length).toBeLessThanOrEqual(2);
     });
   });
 });

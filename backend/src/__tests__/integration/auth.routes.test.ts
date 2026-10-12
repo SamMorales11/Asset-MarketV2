@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { app } from '../../app.js';
-import { generateRefreshToken } from '../../lib/index.js';
+import { AuthTokenResponse, GenericResponse } from './types.js';
 
 describe('Auth API Routes Integration Tests (/api/auth)', () => {
   const timestamp = Date.now();
@@ -21,15 +21,14 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = await res.json() as AuthTokenResponse;
       expect(body.success).toBe(true);
-      expect(body.data).toBeDefined();
-      expect(body.data.accessToken).toBeDefined();
-      expect(body.data.user.email).toBe(testUser.email.toLowerCase());
-      expect(body.data.user.name).toBe(testUser.name);
-      expect(body.data.user.role).toBe('user');
-      expect(body.data.user.passwordHash).toBeUndefined(); // Sensitive data omitted
-      registeredAccessToken = body.data.accessToken;
+      expect(body.data!).toBeDefined();
+      expect(body.data!.accessToken).toBeDefined();
+      expect(body.data!.user!.email).toBe(testUser.email.toLowerCase());
+      expect(body.data!.user!.name).toBe(testUser.name);
+      expect(body.data!.user!.role).toBe('user');
+      registeredAccessToken = body.data!.accessToken;
     });
 
     it('rejects duplicate email registration with 409 Conflict', async () => {
@@ -40,7 +39,7 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(409);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(false);
       expect(body.message).toContain('Email is already registered');
     });
@@ -57,7 +56,7 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(false);
       expect(body.error).toBeDefined();
     });
@@ -75,10 +74,10 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AuthTokenResponse;
       expect(body.success).toBe(true);
-      expect(body.data.accessToken).toBeDefined();
-      expect(body.data.user.email).toBe(testUser.email.toLowerCase());
+      expect(body.data!.accessToken).toBeDefined();
+      expect(body.data!.user!.email).toBe(testUser.email.toLowerCase());
     });
 
     it('rejects login with incorrect password with 401 Unauthorized', async () => {
@@ -92,7 +91,7 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as AuthTokenResponse;
       expect(body.success).toBe(false);
     });
 
@@ -107,7 +106,7 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as AuthTokenResponse;
       expect(body.success).toBe(false);
     });
   });
@@ -119,9 +118,9 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AuthTokenResponse;
       expect(body.success).toBe(true);
-      expect(body.data.user.email).toBe(testUser.email.toLowerCase());
+      expect(body.data!.user!.email).toBe(testUser.email.toLowerCase());
     });
 
     it('returns 401 when Authorization header is absent', async () => {
@@ -151,9 +150,9 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(refreshRes.status).toBe(200);
-      const refreshBody = await refreshRes.json();
+      const refreshBody = await refreshRes.json() as AuthTokenResponse;
       expect(refreshBody.success).toBe(true);
-      expect(refreshBody.data.accessToken).toBeDefined();
+      expect(refreshBody.data!.accessToken).toBeDefined();
     });
 
     it('returns 401 when refresh token is missing or invalid', async () => {
@@ -165,7 +164,7 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as AuthTokenResponse;
       expect(body.success).toBe(false);
     });
   });
@@ -177,7 +176,7 @@ describe('Auth API Routes Integration Tests (/api/auth)', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as AuthTokenResponse;
       expect(body.success).toBe(true);
     });
   });

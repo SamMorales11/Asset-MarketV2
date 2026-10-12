@@ -132,11 +132,11 @@ export const createAssetMetadataSchema = z
     categoryId: z.string().trim().min(1, 'Please select a valid category'),
     assetType: assetTypeEnum.default('other'),
     price: z.coerce
-      .number({ invalid_type_error: 'Price must be a valid number' })
+      .number()
       .min(0, 'Price must be non-negative')
       .max(100_000_000, 'Price exceeds maximum allowed limit'),
     discountPrice: z.coerce
-      .number({ invalid_type_error: 'Discount price must be a valid number' })
+      .number()
       .min(0, 'Discount price must be non-negative')
       .optional()
       .nullable(),
@@ -189,12 +189,12 @@ export const updateAssetMetadataSchema = z
     categoryId: z.string().trim().min(1, 'Please select a valid category').optional(),
     assetType: assetTypeEnum.optional(),
     price: z.coerce
-      .number({ invalid_type_error: 'Price must be a valid number' })
+      .number()
       .min(0, 'Price must be non-negative')
       .max(100_000_000, 'Price exceeds maximum allowed limit')
       .optional(),
     discountPrice: z.coerce
-      .number({ invalid_type_error: 'Discount price must be a valid number' })
+      .number()
       .min(0, 'Discount price must be non-negative')
       .optional()
       .nullable(),
@@ -300,7 +300,7 @@ export const paymentConfirmationMetadataSchema = z.object({
     .min(2, 'Destination bank is required')
     .max(100, 'Destination bank cannot exceed 100 characters'),
   transferAmount: z.coerce
-    .number({ invalid_type_error: 'Transfer amount must be a number' })
+    .number()
     .positive('Transfer amount must be greater than 0'),
   transferDate: z.string().trim().min(1, 'Transfer date is required'),
 });

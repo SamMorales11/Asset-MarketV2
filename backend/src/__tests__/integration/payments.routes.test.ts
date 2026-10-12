@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { app } from '../../app.js';
 import { db } from '../../db/index.js';
-import { assets, transactions, categories } from '../../db/schema.js';
+import { transactions, categories } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
+import {
+  AuthTokenResponse,
+  PaymentConfirmResponse,
+  GenericResponse,
+} from './types.js';
 
 describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & /api/admin/payments)', () => {
   let sellerToken: string;
@@ -24,7 +29,7 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
         password: 'Password123!',
       }),
     });
-    sellerToken = (await sellerRes.json()).data?.accessToken;
+    sellerToken = (await sellerRes.json() as AuthTokenResponse).data!.accessToken;
 
     // 2. Buyer
     const buyerRes = await app.request('/api/auth/register', {
@@ -36,7 +41,7 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
         password: 'Password123!',
       }),
     });
-    buyerToken = (await buyerRes.json()).data?.accessToken;
+    buyerToken = (await buyerRes.json() as AuthTokenResponse).data!.accessToken;
 
     // 3. Admin
     const adminRes = await app.request('/api/auth/login', {
@@ -47,7 +52,7 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
         password: 'Admin123!',
       }),
     });
-    adminToken = (await adminRes.json()).data?.accessToken;
+    adminToken = (await adminRes.json() as AuthTokenResponse).data!.accessToken;
 
     // 4. Create and approve an asset
     const [cat] = await db.select().from(categories).limit(1);
@@ -66,7 +71,7 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
       headers: { Authorization: `Bearer ${sellerToken}` },
       body: form,
     });
-    assetId = (await uploadRes.json()).data?.asset?.id;
+    assetId = (await uploadRes.json() as any).data?.asset?.id;
 
     await app.request(`/api/admin/assets/${assetId}/approve`, {
       method: 'POST',
@@ -94,7 +99,7 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
         destinationBank: 'BCA',
       }),
     });
-    const checkoutData = await checkoutRes.json();
+    const checkoutData = await checkoutRes.json() as any;
     invoiceNumber = checkoutData.data?.invoiceNumber;
   });
 
@@ -139,7 +144,7 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
       });
 
       expect([200, 201]).toContain(res.status);
-      const body = await res.json();
+      const body = await res.json() as PaymentConfirmResponse;
       expect(body.success).toBe(true);
 
       // Verify transaction status changed to processing
@@ -155,9 +160,9 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(true);
-      const item = body.data.pendingPayments.find(
+      const item = (body.data as any).pendingPayments.find(
         (p: any) => p.transaction.invoiceNumber === invoiceNumber
       );
       expect(item).toBeDefined();
@@ -171,7 +176,7 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(true);
 
       const [tx] = await db.select().from(transactions).where(eq(transactions.invoiceNumber, invoiceNumber));
@@ -184,9 +189,9 @@ describe('Payment Confirmation & Admin Settlement Flow (/api/payments/confirm & 
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as GenericResponse;
       expect(body.success).toBe(true);
-      const creatorEarnings = Number(body.data.summary?.creatorEarnings || 0);
+      const creatorEarnings = Number((body.data as any).summary?.creatorEarnings || 0);
       expect(creatorEarnings).toBe(60000);
     });
   });

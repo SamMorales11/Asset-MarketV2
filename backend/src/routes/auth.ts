@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
 import { eq, and, isNull } from 'drizzle-orm';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { db } from '../db/index.js';
