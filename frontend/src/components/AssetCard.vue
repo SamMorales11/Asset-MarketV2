@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useCartStore } from '../stores/cart';
 import { formatCurrency } from '../utils/formatters';
-import { getAssetImageUrl, handleImageFallback, getLuxuryPlaceholder } from '../utils/imageUrl';
+import { getAssetImageUrl, handleImageFallback } from '../utils/imageUrl';
 import type { Asset } from '../types';
 import {
   Star,
@@ -123,7 +123,7 @@ const PROFESSIONAL_REWRITES: Array<{ pattern: RegExp; title: string; description
 function getProfessionalTitle(assetTitle: string): string {
   if (!isTestAsset(assetTitle)) return assetTitle;
   const match = PROFESSIONAL_REWRITES.find(({ pattern }) => pattern.test(assetTitle));
-  return match ? match.title : generateFallbackTitle(assetTitle);
+  return match ? match.title : generateFallbackTitle();
 }
 
 function getProfessionalDescription(assetTitle: string): string {
@@ -132,7 +132,7 @@ function getProfessionalDescription(assetTitle: string): string {
   return match ? match.description : '';
 }
 
-function generateFallbackTitle(originalTitle: string): string {
+function generateFallbackTitle(): string {
   const typeLabels: Record<string, string> = {
     ui_template: 'Modern UI Component Library',
     source_code: 'Production-Ready Codebase',

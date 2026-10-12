@@ -779,8 +779,8 @@ assetRoutes.get('/:identifier', async (c) => {
   try {
     const identifier = c.req.param('identifier');
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
-    const identifierCondition = isUuid
+    const isIdentifierUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const identifierCondition = isIdentifierUuid
       ? or(eq(assets.id, identifier), eq(assets.slug, identifier))
       : eq(assets.slug, identifier);
 

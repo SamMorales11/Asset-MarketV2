@@ -28,8 +28,6 @@ import {
   ArrowUpDown,
   Tag,
   Check,
-  Grid3X3,
-  LayoutList,
 } from 'lucide-vue-next';
 
 const route = useRoute();

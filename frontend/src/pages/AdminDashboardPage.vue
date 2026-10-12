@@ -525,7 +525,7 @@ const currentDate = new Date().toLocaleDateString('id-ID', {
 
                   <div class="space-y-4">
                     <div
-                      v-for="(log, idx) in dashboardData.recentAuditLogs"
+                      v-for="log in dashboardData.recentAuditLogs"
                       :key="log.id"
                       class="relative flex items-start gap-4 pl-1"
                     >

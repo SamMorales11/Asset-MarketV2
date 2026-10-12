@@ -3,7 +3,6 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { assetService } from '../services/assets';
 import AssetCard from '../components/AssetCard.vue';
-import AssetCardSkeleton from '../components/AssetCardSkeleton.vue';
 import type { Asset } from '../types';
 import {
   Sparkles,
