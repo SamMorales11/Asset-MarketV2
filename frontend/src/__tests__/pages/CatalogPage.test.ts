@@ -69,9 +69,9 @@ describe('CatalogPage.vue Search & Filter Integration', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Explore Assets');
-    expect(wrapper.find('input[placeholder*="Search by title"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('All Categories');
+    expect(wrapper.text()).toContain('Digital Assets');
+    expect(wrapper.find('input[placeholder*="Search assets"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('All Assets');
     expect(wrapper.text()).toContain('Templates');
   });
 
@@ -89,7 +89,7 @@ describe('CatalogPage.vue Search & Filter Integration', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Pricing Model');
+    expect(wrapper.text()).toContain('Pricing');
     expect(wrapper.text()).toContain('Paid');
     expect(wrapper.text()).toContain('Free');
   });
@@ -133,7 +133,7 @@ describe('CatalogPage.vue Search & Filter Integration', () => {
 
     await flushPromises();
 
-    const searchInput = wrapper.find('input[placeholder*="Search by title"]');
+    const searchInput = wrapper.find('input[placeholder*="Search assets"]');
     await searchInput.setValue('Dashboard');
     await searchInput.trigger('input');
 
