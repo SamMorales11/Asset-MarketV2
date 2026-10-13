@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { authService, type LoginCredentials, type RegisterCredentials } from '../services/auth';
+import { setAccessToken, clearAccessToken } from '../services/token';
 import type { User } from '../types';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
-  const token = ref<string | null>(localStorage.getItem('access_token'));
+  const token = ref<string | null>(null);
   const isLoading = ref<boolean>(false);
   const isInitialized = ref<boolean>(false);
   const error = ref<string | null>(null);
@@ -18,7 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
   function setAuthData(newUser: User, newToken: string) {
     user.value = newUser;
     token.value = newToken;
-    localStorage.setItem('access_token', newToken);
+    setAccessToken(newToken);
     error.value = null;
   }
 
@@ -31,7 +32,7 @@ export const useAuthStore = defineStore('auth', () => {
   function clearAuth() {
     user.value = null;
     token.value = null;
-    localStorage.removeItem('access_token');
+    clearAccessToken();
   }
 
   async function login(credentials: LoginCredentials) {
@@ -106,11 +107,16 @@ export const useAuthStore = defineStore('auth', () => {
     isInitialized.value = true;
   }
 
-  // Handle global session-expired events
+  // Handle global auth events (session expiration & background token refresh)
   if (typeof window !== 'undefined') {
     window.addEventListener('auth:session-expired', () => {
       clearAuth();
     });
+    window.addEventListener('auth:token-refreshed', ((event: CustomEvent<{ token: string }>) => {
+      if (event.detail?.token) {
+        token.value = event.detail.token;
+      }
+    }) as EventListener);
   }
 
   return {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { userService } from '../services/users';
+import { getAccessToken } from '../services/token';
 import { formatFileSize } from '../utils/formatters';
 import { getAssetImageUrl, handleImageFallback } from '../utils/imageUrl';
 import { useToast } from '../composables/useToast';
@@ -75,7 +76,7 @@ async function handleDownload(params: {
 
   try {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     const url = params.fileId
       ? `${baseUrl}/purchases/download/${params.fileId}`
       : `${baseUrl}/purchases/assets/${params.assetId}/download`;

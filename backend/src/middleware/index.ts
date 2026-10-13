@@ -19,8 +19,6 @@ export async function authMiddleware(c: Context, next: Next) {
   const authHeader = c.req.header('Authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7).trim();
-  } else if (c.req.query('token')) {
-    token = c.req.query('token')?.trim();
   }
 
   if (!token) {

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useAuthStore } from '../../stores/auth';
+import { getAccessToken, clearAccessToken } from '../../services/token';
 import type { User } from '../../types';
 
 vi.mock('../../services/auth', () => ({
@@ -33,6 +34,7 @@ describe('useAuthStore (Pinia)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     localStorage.clear();
+    clearAccessToken();
     vi.clearAllMocks();
   });
 
@@ -78,7 +80,7 @@ describe('useAuthStore (Pinia)', () => {
   });
 
   describe('login()', () => {
-    it('sets user, token, and persists to localStorage on successful login', async () => {
+    it('sets user, in-memory token, and does not store access_token in localStorage on successful login', async () => {
       const store = useAuthStore();
       vi.mocked(authService.login).mockResolvedValue({
         user: dummyUser,
@@ -89,8 +91,9 @@ describe('useAuthStore (Pinia)', () => {
 
       expect(store.user).toEqual(dummyUser);
       expect(store.token).toBe('access.jwt.token');
+      expect(getAccessToken()).toBe('access.jwt.token');
       expect(store.isAuthenticated).toBe(true);
-      expect(localStorage.getItem('access_token')).toBe('access.jwt.token');
+      expect(localStorage.getItem('access_token')).toBeNull();
       expect(store.isLoading).toBe(false);
       expect(store.error).toBeNull();
     });
@@ -126,16 +129,17 @@ describe('useAuthStore (Pinia)', () => {
 
       expect(store.user).toEqual(dummyUser);
       expect(store.token).toBe('registered.token');
+      expect(getAccessToken()).toBe('registered.token');
       expect(store.isAuthenticated).toBe(true);
+      expect(localStorage.getItem('access_token')).toBeNull();
     });
   });
 
   describe('logout()', () => {
-    it('clears user, token, and localStorage', async () => {
+    it('clears user and in-memory token', async () => {
       const store = useAuthStore();
       store.user = dummyUser;
       store.token = 'existing.token';
-      localStorage.setItem('access_token', 'existing.token');
 
       vi.mocked(authService.logout).mockResolvedValue({ success: true } as any);
 
@@ -143,8 +147,55 @@ describe('useAuthStore (Pinia)', () => {
 
       expect(store.user).toBeNull();
       expect(store.token).toBeNull();
+      expect(getAccessToken()).toBeNull();
       expect(store.isAuthenticated).toBe(false);
       expect(localStorage.getItem('access_token')).toBeNull();
+    });
+  });
+
+  describe('initAuth()', () => {
+    it('restores user and in-memory token via silent cookie refresh when starting unauthenticated', async () => {
+      const store = useAuthStore();
+      vi.mocked(authService.refreshToken).mockResolvedValue({
+        user: dummyUser,
+        accessToken: 'silent.refreshed.token',
+      });
+
+      await store.initAuth();
+
+      expect(authService.refreshToken).toHaveBeenCalledTimes(1);
+      expect(store.user).toEqual(dummyUser);
+      expect(store.token).toBe('silent.refreshed.token');
+      expect(getAccessToken()).toBe('silent.refreshed.token');
+      expect(store.isAuthenticated).toBe(true);
+      expect(store.isInitialized).toBe(true);
+      expect(localStorage.getItem('access_token')).toBeNull();
+    });
+
+    it('marks initialized as true and clears auth when silent cookie refresh fails (guest mode)', async () => {
+      const store = useAuthStore();
+      vi.mocked(authService.refreshToken).mockRejectedValue(new Error('No refresh cookie'));
+
+      await store.initAuth();
+
+      expect(store.user).toBeNull();
+      expect(store.token).toBeNull();
+      expect(getAccessToken()).toBeNull();
+      expect(store.isAuthenticated).toBe(false);
+      expect(store.isInitialized).toBe(true);
+    });
+
+    it('fetches profile directly via getMe if in-memory token is already present', async () => {
+      const store = useAuthStore();
+      store.token = 'existing.inmemory.token';
+      vi.mocked(authService.getMe).mockResolvedValue(dummyUser);
+
+      await store.initAuth();
+
+      expect(authService.getMe).toHaveBeenCalledTimes(1);
+      expect(authService.refreshToken).not.toHaveBeenCalled();
+      expect(store.user).toEqual(dummyUser);
+      expect(store.isInitialized).toBe(true);
     });
   });
 

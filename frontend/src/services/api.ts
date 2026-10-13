@@ -4,6 +4,9 @@ import axios, {
   type AxiosResponse,
   type AxiosError,
 } from 'axios';
+import { getAccessToken, setAccessToken, clearAccessToken } from './token';
+
+export { getAccessToken, setAccessToken, clearAccessToken } from './token';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
@@ -110,7 +113,7 @@ export const apiClient: AxiosInstance = axios.create({
 // Request Interceptor: Attach Bearer Access Token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -187,7 +190,12 @@ apiClient.interceptors.response.use(
           throw new Error('Refresh response missing access token');
         }
 
-        localStorage.setItem('access_token', newAccessToken);
+        setAccessToken(newAccessToken);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('auth:token-refreshed', { detail: { token: newAccessToken } })
+          );
+        }
 
         if (originalRequest.headers) {
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
@@ -197,7 +205,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshErr) {
         processQueue(refreshErr, null);
-        localStorage.removeItem('access_token');
+        clearAccessToken();
         // Dispatch custom event for stores/router to react to session expiration
         window.dispatchEvent(new CustomEvent('auth:session-expired'));
         return Promise.reject(normalizeError(refreshErr));

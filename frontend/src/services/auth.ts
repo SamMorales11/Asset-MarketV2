@@ -1,4 +1,5 @@
 import { apiClient } from './api';
+import { clearAccessToken } from './token';
 import type { User, ApiResponse } from '../types';
 
 export interface LoginCredentials {
@@ -59,7 +60,7 @@ export const authService = {
     try {
       await apiClient.post('/auth/logout');
     } finally {
-      localStorage.removeItem('access_token');
+      clearAccessToken();
     }
   },
 

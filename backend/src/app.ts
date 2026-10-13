@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { secureHeaders } from 'hono/secure-headers';
 import * as path from 'path';
 import { apiRoutes } from './routes/index.js';
 import { authRoutes } from './routes/auth.js';
@@ -19,15 +20,38 @@ import { getUploadsRootDir, ensureUploadDirs } from './utils/paths.js';
 // Ensure standard uploads directories exist at server start
 ensureUploadDirs();
 
+// Global Security Headers Middleware
+app.use(
+  '*',
+  secureHeaders({
+    xFrameOptions: 'DENY',
+    xContentTypeOptions: 'nosniff',
+    strictTransportSecurity: 'max-age=31536000; includeSubDomains',
+    crossOriginResourcePolicy: false,
+  })
+);
+
 // Global CORS Middleware supporting cookies and Bearer tokens
+const LOCAL_ORIGIN_REGEX = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
 app.use(
   '*',
   cors({
     origin: (origin) => {
-      if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
-        return origin || 'http://localhost:5173';
+      const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean);
+
+      if (!origin) {
+        return allowedOrigins[0] || 'http://localhost:5173';
       }
-      return 'http://localhost:5173';
+
+      if (LOCAL_ORIGIN_REGEX.test(origin) || allowedOrigins.includes(origin)) {
+        return origin;
+      }
+
+      return allowedOrigins[0] || 'http://localhost:5173';
     },
     credentials: true,
     allowHeaders: ['Content-Type', 'Authorization'],
@@ -124,6 +148,12 @@ app.all('/uploads/*', async (c) => {
   c.header('Content-Length', stats.size.toString());
   c.header('Last-Modified', stats.mtime.toUTCString());
   c.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+
+  // CSP sandbox isolation for SVG files to prevent Stored XSS
+  if (ext === '.svg') {
+    c.header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    c.header('X-Content-Type-Options', 'nosniff');
+  }
 
   if (c.req.method === 'HEAD') {
     return c.body(null, 200);

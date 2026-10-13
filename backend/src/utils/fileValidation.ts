@@ -101,13 +101,12 @@ export const CATEGORY_VALIDATION_RULES: Record<Exclude<FileCategory, 'any'>, Fil
   image: {
     categoryLabel: 'Image File',
     maxSizeBytes: 15 * 1024 * 1024, // 15 MB
-    allowedExtensions: ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.avif'],
+    allowedExtensions: ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif'],
     allowedMimeTypes: [
       'image/jpeg',
       'image/png',
       'image/webp',
       'image/gif',
-      'image/svg+xml',
       'image/avif',
     ],
   },

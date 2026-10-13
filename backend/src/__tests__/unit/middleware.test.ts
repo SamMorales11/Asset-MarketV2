@@ -85,7 +85,7 @@ describe('Middleware & Role-Based Access Control (RBAC)', () => {
       expect(data.user.role).toBe('user');
     });
 
-    it('allows access via query parameter token', async () => {
+    it('rejects access via query parameter token (requires Authorization header)', async () => {
       const app = createTestApp();
       const token = await generateAccessToken({
         userId: 'usr_query_user',
@@ -96,10 +96,10 @@ describe('Middleware & Role-Based Access Control (RBAC)', () => {
 
       const res = await app.request(`/protected?token=${token}`);
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(401);
       const data = await res.json() as any;
-      expect(data.success).toBe(true);
-      expect(data.user.userId).toBe('usr_query_user');
+      expect(data.success).toBe(false);
+      expect(data.code).toBe('MISSING_TOKEN');
     });
   });
 

@@ -1,4 +1,5 @@
 import { apiClient } from './api';
+import { getAccessToken } from './token';
 import type {
   ApiResponse,
   CartItem,
@@ -130,20 +131,98 @@ export const transactionService = {
     return response.data.data || { purchases: [], totalPurchased: 0 };
   },
 
+  async downloadFile(fileId: string, customFileName?: string): Promise<void> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    const token = getAccessToken();
+    const response = await fetch(`${baseUrl}/purchases/download/${fileId}`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!response.ok) {
+      let errorMsg = `Gagal mengunduh berkas (Status HTTP ${response.status})`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson?.message) errorMsg = errorJson.message;
+      } catch {}
+      throw new Error(errorMsg);
+    }
+
+    const disposition = response.headers.get('Content-Disposition');
+    let resolvedName = customFileName || 'asset-deliverable.zip';
+    if (disposition) {
+      const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (utf8Match && utf8Match[1]) {
+        resolvedName = decodeURIComponent(utf8Match[1]);
+      } else {
+        const standardMatch = disposition.match(/filename="?([^";]+)"?/i);
+        if (standardMatch && standardMatch[1]) {
+          resolvedName = decodeURIComponent(standardMatch[1]);
+        }
+      }
+    }
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = resolvedName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
+  },
+
+  async downloadAsset(assetId: string, customFileName?: string): Promise<void> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    const token = getAccessToken();
+    const response = await fetch(`${baseUrl}/purchases/assets/${assetId}/download`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!response.ok) {
+      let errorMsg = `Gagal mengunduh berkas (Status HTTP ${response.status})`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson?.message) errorMsg = errorJson.message;
+      } catch {}
+      throw new Error(errorMsg);
+    }
+
+    const disposition = response.headers.get('Content-Disposition');
+    let resolvedName = customFileName || 'asset-deliverable.zip';
+    if (disposition) {
+      const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (utf8Match && utf8Match[1]) {
+        resolvedName = decodeURIComponent(utf8Match[1]);
+      } else {
+        const standardMatch = disposition.match(/filename="?([^";]+)"?/i);
+        if (standardMatch && standardMatch[1]) {
+          resolvedName = decodeURIComponent(standardMatch[1]);
+        }
+      }
+    }
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = resolvedName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
+  },
+
   getDownloadUrl(fileId: string): string {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
-    const token = localStorage.getItem('access_token');
-    return token
-      ? `${baseUrl}/purchases/download/${fileId}?token=${encodeURIComponent(token)}`
-      : `${baseUrl}/purchases/download/${fileId}`;
+    return `${baseUrl}/purchases/download/${fileId}`;
   },
 
   getAssetDownloadUrl(assetId: string): string {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
-    const token = localStorage.getItem('access_token');
-    return token
-      ? `${baseUrl}/purchases/assets/${assetId}/download?token=${encodeURIComponent(token)}`
-      : `${baseUrl}/purchases/assets/${assetId}/download`;
+    return `${baseUrl}/purchases/assets/${assetId}/download`;
   },
 
   async claimFreeAsset(assetId: string): Promise<any> {
