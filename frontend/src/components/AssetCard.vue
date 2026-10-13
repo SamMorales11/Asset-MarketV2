@@ -61,7 +61,7 @@ const PROFESSIONAL_THUMBNAILS: Record<string, string[]> = {
 };
 
 // ─── Test Keyword Detection ─────────────────────────────────────────────────
-const TEST_KEYWORDS = [
+const TEST_KEYWORDS: (string | RegExp)[] = [
   'test', 'Test', 'TEST',
   'integration', 'Integration', 'INTEGRATION',
   'suite', 'Suite', 'SUITE',
@@ -69,15 +69,25 @@ const TEST_KEYWORDS = [
   'dummy', 'Dummy', 'DUMMY',
   'sample', 'Sample', 'SAMPLE',
   'placeholder', 'Placeholder', 'PLACEHOLDER',
+  'deliverable', 'Deliverable', 'DELIVERABLE',
   'green', 'bg-green', 'bg-success',
+  /\d{5,}/,
 ];
 
 function isTestAsset(title: string): boolean {
-  return TEST_KEYWORDS.some((kw) => title.includes(kw));
+  if (!title) return false;
+  return TEST_KEYWORDS.some((kw) =>
+    typeof kw === 'string' ? title.toLowerCase().includes(kw.toLowerCase()) : kw.test(title)
+  );
 }
 
 // ─── Professional Title & Description Rewrite ─────────────────────────────────
 const PROFESSIONAL_REWRITES: Array<{ pattern: RegExp; title: string; description: string }> = [
+  {
+    pattern: /deliverable/i,
+    title: 'Apex Enterprise UI Kit & Design System',
+    description: 'Comprehensive digital product system with modular Vue components, design tokens, and multi-format deliverable assets.',
+  },
   {
     pattern: /integration\s*suite.*asset/i,
     title: 'Nexus SaaS Dashboard & UI Kit',
@@ -117,6 +127,11 @@ const PROFESSIONAL_REWRITES: Array<{ pattern: RegExp; title: string; description
     pattern: /placeholder.*test/i,
     title: 'Minimalist Wireframe Component Kit',
     description: 'Low-fidelity UI wireframe library for rapid prototyping and user flow validation.',
+  },
+  {
+    pattern: /\d{5,}/,
+    title: 'Modern UI Component Library',
+    description: 'Comprehensive high-performance design system with responsive layouts, accessible UI components, and production assets.',
   },
 ];
 

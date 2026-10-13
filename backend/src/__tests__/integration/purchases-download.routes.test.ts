@@ -1,7 +1,17 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { app } from '../../app.js';
 import { db } from '../../db/index.js';
-import { categories } from '../../db/schema.js';
+import {
+  categories,
+  assets,
+  transactions,
+  transactionItems,
+  paymentConfirmations,
+  revenueLedger,
+  cartItems,
+  assetFiles,
+} from '../../db/schema.js';
+import { eq, inArray } from 'drizzle-orm';
 import {
   AuthTokenResponse,
   PurchaseListResponse,
@@ -85,6 +95,16 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
       body: form,
     });
     assetId = (await uploadRes.json() as any).data?.asset?.id;
+
+    // Set valid Unsplash mockup thumbnail URL
+    const UNSPLASH_MOCKUP_URL = 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=80';
+    await db
+      .update(assets)
+      .set({
+        thumbnailUrl: UNSPLASH_MOCKUP_URL,
+        previewImages: [UNSPLASH_MOCKUP_URL],
+      })
+      .where(eq(assets.id, assetId));
 
     // Approve asset
     await app.request(`/api/admin/assets/${assetId}/approve`, {
@@ -222,5 +242,40 @@ describe('My Purchases, Secure Downloads & Deliverable Protection', () => {
       expect(body.success).toBe(false);
       expect(body.message).toContain('Direct access to digital asset deliverable is forbidden');
     });
+  });
+
+  afterAll(async () => {
+    try {
+      if (assetId) {
+        if (invoiceNumber) {
+          const [tx] = await db
+            .select({ id: transactions.id })
+            .from(transactions)
+            .where(eq(transactions.invoiceNumber, invoiceNumber));
+
+          if (tx) {
+            const txItems = await db
+              .select({ id: transactionItems.id })
+              .from(transactionItems)
+              .where(eq(transactionItems.transactionId, tx.id));
+            const txItemIds = txItems.map((t) => t.id);
+
+            await db.delete(paymentConfirmations).where(eq(paymentConfirmations.transactionId, tx.id));
+            await db.delete(revenueLedger).where(eq(revenueLedger.transactionId, tx.id));
+            if (txItemIds.length > 0) {
+              await db.delete(revenueLedger).where(inArray(revenueLedger.transactionItemId, txItemIds));
+            }
+            await db.delete(transactionItems).where(eq(transactionItems.transactionId, tx.id));
+            await db.delete(transactions).where(eq(transactions.id, tx.id));
+          }
+        }
+
+        await db.delete(cartItems).where(eq(cartItems.assetId, assetId));
+        await db.delete(assetFiles).where(eq(assetFiles.assetId, assetId));
+        await db.delete(assets).where(eq(assets.id, assetId));
+      }
+    } catch (error) {
+      console.error('Error during afterAll cleanup in purchases-download test:', error);
+    }
   });
 });
