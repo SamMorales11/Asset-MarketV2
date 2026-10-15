@@ -3,7 +3,7 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm install --prefix backend && npm install --prefix frontend",
+  "installCommand": "npm install --include=dev --prefix backend && npm install --include=dev --prefix frontend",
   "framework": "vite",
   "rewrites": [
     {
