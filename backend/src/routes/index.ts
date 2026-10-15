@@ -18,6 +18,14 @@ apiRoutes.route('/cart', cartRoutes);
 apiRoutes.route('/users', userRoutes);
 apiRoutes.route('/', transactionRoutes); // mounts /checkout, /transactions/:invoiceNumber, /payments/confirm, /purchases/my
 
+apiRoutes.get('/health', (c) => {
+  return c.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'asset-market-backend',
+  });
+});
+
 apiRoutes.get('/', (c) => {
   return c.json({
     message: 'Welcome to Asset Market API',

@@ -2,11 +2,22 @@
   "name": "asset-market-workspace",
   "version": "1.0.0",
   "private": true,
-  "description": "Asset Market Full-Stack Application Test Runner",
+  "type": "module",
+  "description": "Asset Market Full-Stack Application Monorepo (Vue 3 + Hono + Neon PostgreSQL)",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "build:vercel": "npm run build --prefix backend && npm run build --prefix frontend",
     "build:backend": "npm run build --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "dev": "npm run dev --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "start:backend": "npm run start --prefix backend",
     "test": "npm run test --prefix backend && npm run test --prefix frontend",
     "test:backend": "npm run test --prefix backend",
     "test:frontend": "npm run test --prefix frontend",

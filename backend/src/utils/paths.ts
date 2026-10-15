@@ -7,6 +7,11 @@ import { fileURLToPath } from 'url';
  * Works seamlessly whether Node is launched from workspace root or backend folder.
  */
 export function getUploadsRootDir(): string {
+  // 0. Running inside Vercel Serverless environment (read-only filesystem except /tmp)
+  if (process.env.VERCEL) {
+    return path.join('/tmp', 'uploads');
+  }
+
   // 1. Direct uploads in current working directory
   const cwdUploads = path.resolve(process.cwd(), 'uploads');
   if (fs.existsSync(cwdUploads)) {
