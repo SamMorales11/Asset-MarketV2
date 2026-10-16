@@ -26,6 +26,7 @@
     "test:coverage:frontend": "npm run test:coverage --prefix frontend"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.5",
     "@neondatabase/serverless": "^1.1.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.5",
