@@ -132,7 +132,7 @@ export const transactionService = {
   },
 
   async downloadFile(fileId: string, customFileName?: string): Promise<void> {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
     const token = getAccessToken();
     const response = await fetch(`${baseUrl}/purchases/download/${fileId}`, {
       method: 'GET',
@@ -174,7 +174,7 @@ export const transactionService = {
   },
 
   async downloadAsset(assetId: string, customFileName?: string): Promise<void> {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
     const token = getAccessToken();
     const response = await fetch(`${baseUrl}/purchases/assets/${assetId}/download`, {
       method: 'GET',
@@ -216,12 +216,12 @@ export const transactionService = {
   },
 
   getDownloadUrl(fileId: string): string {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
     return `${baseUrl}/purchases/download/${fileId}`;
   },
 
   getAssetDownloadUrl(assetId: string): string {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
     return `${baseUrl}/purchases/assets/${assetId}/download`;
   },
 

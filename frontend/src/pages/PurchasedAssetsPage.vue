@@ -75,7 +75,7 @@ async function handleDownload(params: {
   toast.info('Memulai Unduhan', `Sedang menyiapkan ${targetLabel}...`);
 
   try {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
     const token = getAccessToken();
     const url = params.fileId
       ? `${baseUrl}/purchases/download/${params.fileId}`
